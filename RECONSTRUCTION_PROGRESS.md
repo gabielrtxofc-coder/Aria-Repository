@@ -26,9 +26,9 @@ Este documento registra o progresso contínuo, a auditoria arquitetural, as deci
 |---|---|---|---|
 | **Fase 1** | Leitura e Auditoria do Repositório | **CONCLUÍDA** | Repositório auditado; dependências, scripts e arquitetura mapeados. |
 | **Fase 2** | Planejamento da Reconstrução | **CONCLUÍDA** | Plano técnico gerado em `reconstruction_plan.md` e decomposto em 6 etapas. |
-| **Etapa 1** | Instalação e Resolução de Dependências | **EM ANDAMENTO** | Configuração do toolchain (Node 26, pnpm 12, git 2.56) realizada. |
-| **Etapa 2** | Validação de Contratos e Typert | Pendente | Aguardando Etapa 1. |
-| **Etapa 3** | Build dos Pacotes Core & Bibliotecas | Pendente | Aguardando Etapa 2. |
+| **Etapa 1** | Instalação e Resolução de Dependências | **CONCLUÍDA** | 1402 dependências instaladas, workspaces vinculados, hooks configurados. |
+| **Etapa 2** | Validação de Contratos e Typert | **CONCLUÍDA** | 30 artefatos Typert gerados em 30 pacotes (39.9s); `tsc -b tsconfig.client.json` concluído com sucesso. |
+| **Etapa 3** | Build dos Pacotes Core & Bibliotecas | **EM ANDAMENTO** | Iniciando compilação de runtime Host e Client. |
 | **Etapa 4** | Build da Interface Web & CLI `dsh` | Pendente | Aguardando Etapa 3. |
 | **Etapa 5** | Execução de Testes e Perfis | Pendente | Aguardando Etapa 4. |
 | **Etapa 6** | Validação Integrada de Ponta a Ponta | Pendente | Aguardando Etapa 5. |
