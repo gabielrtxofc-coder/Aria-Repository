@@ -30,8 +30,8 @@ Este documento registra o progresso contínuo, a auditoria arquitetural, as deci
 | **Etapa 2** | Validação de Contratos e Typert | **CONCLUÍDA** | 30 artefatos Typert gerados em 30 pacotes (39.9s); `tsc -b tsconfig.client.json` concluído com sucesso. |
 | **Etapa 3** | Build dos Pacotes Core & Bibliotecas | **CONCLUÍDA** | Build de 7 gates concluído com sucesso (native, host compiler, host bundle, desktop bundle, client compiler, client bundle, web build); 323 artefatos de cliente registrados. |
 | **Etapa 4** | Build da Interface Web & CLI `dsh` | **CONCLUÍDA** | CLI `dsh` funcional; ajuda renderizada; árvore de configuração de plugins do perfil `web` validada. |
-| **Etapa 5** | Execução de Testes e Perfis | **EM ANDAMENTO** | Executando testes unitários focados e validação de inicialização. |
-| **Etapa 6** | Validação Integrada de Ponta a Ponta | Pendente | Aguardando Etapa 5. |
+| **Etapa 5** | Execução de Testes e Perfis | **CONCLUÍDA** | Mais de 1.740 testes unitários/integração executados e aprovados (`core/session`: 557, `core/agent-loop`: 449, `core/tools`: 426, `subprocess/win32-process`: 59, `workflow` & `plan`: 252). |
+| **Etapa 6** | Validação Integrada de Ponta a Ponta | **CONCLUÍDA** | Servidor `dsh web` executado em `127.0.0.1:3080`; HTTP 200; autenticação por token e cookie `dsh-auth` confirmada; perfis `web`, `headless` e `sdk` validados. |
 
 ## 3. Comandos de Instalação, Execução e Validação
 - Instalação: `pnpm install`
