@@ -1,0 +1,170 @@
+name: fase3-functional
+
+# Testes funcionais da Fase 3 (temporário, apenas investigação).
+# Executa sobre o código exato da branch do PR #14, em runners padrão do GitHub.
+
+on:
+  push:
+    branches: [arena/68e80fa4-aria-repository]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PRIMARY_NODE_VERSION: '24'
+  DSH_TELEMETRY_DISABLED: '1'
+
+jobs:
+  setup:
+    name: 1. instalar dependencias
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/integrate-deepseek-harness-v0.2.1-rc.2
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.PRIMARY_NODE_VERSION }}
+      - name: Install (immutable)
+        run: pnpm install --frozen-lockfile
+      - name: Count resolved dependencies
+        run: echo "deps=$(pnpm list --depth 0 --json 2>/dev/null | wc -c)" && pnpm store path
+
+  cli:
+    name: 2. CLI dsh
+    needs: setup
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/integrate-deepseek-harness-v0.2.1-rc.2
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.PRIMARY_NODE_VERSION }}
+      - run: pnpm install --frozen-lockfile
+      - name: dsh --version
+        run: pnpm dsh --version 2>&1 | tail -5
+      - name: dsh --help
+        run: pnpm dsh --help 2>&1 | tee /tmp/help.txt | head -40
+      - name: Error if help is empty
+        run: test -s /tmp/help.txt
+
+  headless:
+    name: 3. modo headless (sem interface, com modelo falso)
+    needs: setup
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/integrate-deepseek-harness-v0.2.1-rc.2
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.PRIMARY_NODE_VERSION }}
+      - run: pnpm install --frozen-lockfile
+      - name: Rodar tarefa headless com provider cli-mock (sem chave de API)
+        run: |
+          set -o pipefail
+          timeout 240 pnpm dsh headless \
+            --patch apps/cli/tests/profiles/headless/tests/fixtures/headless-profile.patch.yml \
+            "Responda com a palavra OK." 2>&1 | tail -40
+      - name: Confirmar que a sessao foi gravada em disco
+        if: always()
+        run: |
+          find . -path ./node_modules -prune -o -name "session*.jsonl*" -print 2>/dev/null | head -10
+          ls -la .dsh/sessions 2>/dev/null | head -10 || echo "sem .dsh/sessions no diretorio atual"
+
+  web:
+    name: 4. interface web
+    needs: setup
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/integrate-deepseek-harness-v0.2.1-rc.2
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.PRIMARY_NODE_VERSION }}
+      - run: pnpm install --frozen-lockfile
+      - name: Build artifacts
+        run: pnpm run build:artifacts
+      - name: Iniciar servidor web e testar HTTP
+        run: |
+          set -x
+          (pnpm dsh web --no-open --port 3085 > /tmp/web.log 2>&1 &) 
+          for i in $(seq 1 60); do
+            if curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3085/ | grep -qE "200|302|401|403"; then break; fi
+            sleep 2
+          done
+          echo "=== STATUS HTTP ==="
+          curl -s -o /tmp/page.html -w "status=%{http_code} tipo=%{content_type}\n" http://127.0.0.1:3085/
+          echo "=== CABECALHOS ==="
+          curl -s -D - -o /dev/null http://127.0.0.1:3085/ | head -15
+          echo "=== HTML (primeiras linhas) ==="
+          head -c 400 /tmp/page.html; echo
+          echo "=== LOG DO SERVIDOR ==="
+          tail -30 /tmp/web.log
+
+  unidade:
+    name: 5. testes automatizados - ${{ matrix.suite }}
+    needs: setup
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [packages/core/tools, packages/core/session, packages/core/agent-loop]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/integrate-deepseek-harness-v0.2.1-rc.2
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.PRIMARY_NODE_VERSION }}
+      - run: pnpm install --frozen-lockfile
+      - name: Vitest ${{ matrix.suite }}
+        run: pnpm exec vitest run ${{ matrix.suite }} 2>&1 | tail -25
+
+  referencias:
+    name: 6. verify-repository-references (correcao do uv.lock)
+    needs: setup
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/integrate-deepseek-harness-v0.2.1-rc.2
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.PRIMARY_NODE_VERSION }}
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run verify-repository-references
