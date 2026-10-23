@@ -1,0 +1,126 @@
+name: fase3-detalhes
+
+# Coleta de detalhes da Fase 3 (temporário). Publica os resultados como
+# anotações para leitura via API, já que os logs brutos são inacessíveis.
+
+on:
+  push:
+    branches: [arena/68e80fa4-aria-repository]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PRIMARY_NODE_VERSION: '24'
+  DSH_TELEMETRY_DISABLED: '1'
+
+jobs:
+  web:
+    name: web - detalhes HTTP
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/integrate-deepseek-harness-v0.2.1-rc.2
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.PRIMARY_NODE_VERSION }}
+      - run: pnpm install --frozen-lockfile
+      - name: Build artifacts
+        run: pnpm run build:artifacts
+      - name: Servidor web: status, cabecalhos e conteudo
+        run: |
+          (pnpm dsh web --no-open --port 3085 > /tmp/web.log 2>&1 &)
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3085/ || true)
+            [ "$code" != "000" ] && break
+            sleep 2
+          done
+          echo "::notice title=WEB_STATUS::HTTP $code"
+          ct=$(curl -s -o /tmp/page.html -w "%{content_type}" http://127.0.0.1:3085/)
+          echo "::notice title=WEB_CONTENT_TYPE::${ct}"
+          echo "::notice title=WEB_BYTES::$(wc -c < /tmp/page.html) bytes"
+          title=$(grep -oE "<title>[^<]*</title>" /tmp/page.html | head -1 | sed 's/<[^>]*>//g')
+          echo "::notice title=WEB_TITLE::${title:-<sem title>}"
+          inject=$(grep -oE 'dsh|deepseek' /tmp/page.html | head -1)
+          echo "::notice title=WEB_MARCA::${inject:-nenhuma}"
+          echo "::notice title=WEB_LOG::$(tail -6 /tmp/web.log | tr '\n' ' | ' | cut -c1-700)"
+      - name: Rota de API responde?
+        run: |
+          for path in /api /health /api/health /api/session; do
+            c=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:3085$path" || true)
+            echo "::notice title=ROTA $path::$c"
+          done
+      - name: Arquivos estaticos do app carregam?
+        run: |
+          for f in $(grep -oE '(src|href)="[^"]*\.(js|css)"' /tmp/page.html | sed -E 's/.*="([^"]*)"/\1/' | head -4); do
+            c=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:3085$f" || true)
+            echo "::notice title=ASSET $f::$c"
+          done
+
+  headless:
+    name: headless - capturar erro
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/integrate-deepseek-harness-v0.2.1-rc.2
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.PRIMARY_NODE_VERSION }}
+      - run: pnpm install --frozen-lockfile
+      - name: dsh headless --help
+        run: |
+          pnpm dsh headless --help 2>&1 | head -20
+          echo "::notice title=HEADLESS_HELP_ENVIADO::ver log do passo"
+      - name: Executar com provider falso e capturar a mensagem
+        run: |
+          set +e
+          timeout 200 pnpm dsh headless \
+            --patch apps/cli/tests/profiles/headless/tests/fixtures/headless-profile.patch.yml \
+            "Responda com a palavra OK." > /tmp/hl.out 2> /tmp/hl.err
+          rc=$?
+          echo "::notice title=HEADLESS_EXIT::codigo $rc"
+          echo "::error title=HEADLESS_STDERR::$(tail -12 /tmp/hl.err | tr '\n' ' | ' | cut -c1-900)"
+          echo "::notice title=HEADLESS_STDOUT::$(tail -6 /tmp/hl.out | tr '\n' ' | ' | cut -c1-700)"
+
+  desktop:
+    name: desktop - compila e empacota?
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/integrate-deepseek-harness-v0.2.1-rc.2
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.PRIMARY_NODE_VERSION }}
+      - run: pnpm install --frozen-lockfile
+      - name: Build do desktop (compilacao TS + bundle, sem abrir janela)
+        run: |
+          set +e
+          pnpm run build:desktop > /tmp/desktop.log 2>&1
+          rc=$?
+          echo "::notice title=DESKTOP_BUILD_EXIT::codigo $rc"
+          echo "::notice title=DESKTOP_BUILD_TAIL::$(tail -8 /tmp/desktop.log | tr '\n' ' | ' | cut -c1-800)"
+          exit $rc
+      - name: Artefatos gerados
+        if: always()
+        run: |
+          n=$(find apps/desktop/lib apps/desktop/dist -type f 2>/dev/null | wc -l)
+          echo "::notice title=DESKTOP_ARTEFATOS::${n} arquivos gerados"
