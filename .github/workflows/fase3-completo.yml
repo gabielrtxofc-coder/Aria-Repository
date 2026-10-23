@@ -1,0 +1,100 @@
+name: fase3-completo
+
+on:
+  push:
+    branches: [arena/68e80fa4-aria-repository]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PRIMARY_NODE_VERSION: '24'
+  DSH_TELEMETRY_DISABLED: '1'
+
+jobs:
+  funcional:
+    name: build + web + headless + desktop
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/integrate-deepseek-harness-v0.2.1-rc.2
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.PRIMARY_NODE_VERSION }}
+      - name: Install (immutable)
+        run: pnpm install --frozen-lockfile
+
+      - name: Build completo dos artefatos
+        run: |
+          set +e
+          pnpm run build > /tmp/build.log 2>&1
+          rc=$?
+          echo "::warning::BUILD exit=$rc tail=[$(tail -5 /tmp/build.log | tr '\n' ' ' | cut -c1-600)]"
+          if [ $rc -ne 0 ]; then exit 1; fi
+
+      - name: WEB com autenticacao por token
+        run: |
+          set +e
+          (pnpm dsh web --no-open --port 3085 > /tmp/web.log 2>&1 &)
+          for i in $(seq 1 60); do
+            c=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3085/ || true)
+            [ "$c" != "000" ] && break
+            sleep 2
+          done
+          noauth=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3085/ || true)
+          token=$(grep -oE 'token=[A-Za-z0-9_-]+' /tmp/web.log | head -1 | cut -d= -f2)
+          if [ -z "$token" ]; then echo "::warning::WEB token nao encontrado no log"; fi
+          len=${#token}
+          echo "::warning::WEB sem_credencial=$noauth token_comprimento=$len"
+          rm -f /tmp/cookies.txt
+          authcode=$(curl -s -c /tmp/cookies.txt -o /tmp/login.html -w "%{http_code}" "http://127.0.0.1:3085/?token=$token" || true)
+          echo "::warning::WEB com_token=$authcode bytes_login=$(wc -c < /tmp/login.html)"
+          page=$(curl -s -b /tmp/cookies.txt -o /tmp/app.html -w "%{http_code}" http://127.0.0.1:3085/ || true)
+          bytes=$(wc -c < /tmp/app.html)
+          title=$(grep -oE "<title>[^<]*</title>" /tmp/app.html | head -1 | sed 's/<[^>]*>//g')
+          scripts=$(grep -oE 'src="[^"]*\.js"' /tmp/app.html | wc -l)
+          echo "::warning::WEB com_cookie=$page bytes=$bytes title=[$title] scripts=$scripts"
+          asset=$(grep -oE 'src="[^"]*\.js"' /tmp/app.html | head -1 | sed -E 's/src="([^"]*)"/\1/')
+          if [ -n "$asset" ]; then
+            ac=$(curl -s -b /tmp/cookies.txt -o /dev/null -w "%{http_code}" "http://127.0.0.1:3085$asset" || true)
+            echo "::warning::WEB asset=$ac [$asset]"
+          fi
+
+      - name: HEADLESS (modelo falso, sem chave)
+        run: |
+          set +e
+          cd /tmp && mkdir -p hl && cd hl
+          timeout 240 pnpm --dir /home/runner/work/Aria-Repository/Aria-Repository dsh headless \
+            --patch /home/runner/work/Aria-Repository/Aria-Repository/apps/cli/tests/profiles/headless/tests/fixtures/headless-profile.patch.yml \
+            "Responda OK." > out.txt 2> err.txt
+          rc=$?
+          echo "::warning::HEADLESS exit=$rc"
+          echo "::warning::HEADLESS stderr=[$(tail -6 err.txt | tr '\n' ' ' | cut -c1-700)]"
+          echo "::warning::HEADLESS stdout=[$(tail -8 out.txt | tr '\n' ' ' | cut -c1-700)]"
+          echo "::warning::HEADLESS sessoes=$(find . -name '*.jsonl*' 2>/dev/null | wc -l)"
+
+      - name: IA sem credencial (mensagem esperada)
+        run: |
+          set +e
+          cd /tmp && mkdir -p ai && cd ai
+          env -u DEEPSEEK_API_KEY -u ANTHROPIC_API_KEY -u AZURE_OPENAI_API_KEY \
+            timeout 180 pnpm --dir /home/runner/work/Aria-Repository/Aria-Repository dsh headless "Ola" > out2.txt 2> err2.txt
+          rc=$?
+          echo "::warning::IA_SEM_CHAVE exit=$rc"
+          echo "::warning::IA_SEM_CHAVE stderr=[$(tail -6 err2.txt | tr '\n' ' ' | cut -c1-700)]"
+
+      - name: DESKTOP build
+        run: |
+          set +e
+          pnpm run build:desktop > /tmp/desktop.log 2>&1
+          rc=$?
+          n=$(find apps/desktop/lib apps/desktop/dist -type f 2>/dev/null | wc -l)
+          echo "::warning::DESKTOP exit=$rc arquivos=$n"
+          echo "::warning::DESKTOP tail=[$(tail -6 /tmp/desktop.log | tr '\n' ' ' | cut -c1-800)]"
