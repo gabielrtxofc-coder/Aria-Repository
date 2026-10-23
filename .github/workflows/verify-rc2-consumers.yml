@@ -1,0 +1,78 @@
+name: verify-rc2-consumers
+
+# Verificação temporária de investigação (2ª tentativa, fiel ao ci.yml).
+# Reproduz o job "node 24 / snapshots and artifacts" incluindo TODOS os
+# passos de preparação (bubblewrap, Playwright, office runtime), num
+# runner padrão do GitHub.
+
+on:
+  push:
+    branches: [arena/68e80fa4-aria-repository]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PRIMARY_NODE_VERSION: '24'
+  DSH_TELEMETRY_DISABLED: '1'
+  DSH_ARCHIVE_BASE_REF: '816b8f4d6d77dfeab4e9c6e3aa3394bcdff72102'
+
+jobs:
+  consumers:
+    name: consumers full-setup on github-hosted
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - name: Use runner-owned temporary storage
+        run: echo "TMPDIR=${{ runner.temp }}" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/integrate-deepseek-harness-v0.2.1-rc.2
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Show resolved version
+        run: node -p "require('./package.json').version"
+
+      - name: Redirect Node compile cache to runner temp
+        run: echo "NODE_COMPILE_CACHE=${{ runner.temp }}/node-compile-cache" >> "$GITHUB_ENV"
+
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.PRIMARY_NODE_VERSION }}
+
+      - name: Configure pnpm store path
+        run: echo "PNPM_CONFIG_STORE_DIR=$HOME/.local/share/pnpm/store" >> "$GITHUB_ENV"
+
+      # Mesmo passo do ci.yml: instala dependências e prepara bubblewrap em paralelo.
+      - name: Install dependencies and prepare bubblewrap
+        run: |
+          pnpm install --frozen-lockfile &
+          install_pid=$!
+          bash scripts/prepare-ci-bubblewrap.sh &
+          sandbox_pid=$!
+          install_status=0
+          wait "$install_pid" || install_status=$?
+          sandbox_status=0
+          wait "$sandbox_pid" || sandbox_status=$?
+          if (( install_status != 0 )); then exit "$install_status"; fi
+          exit "$sandbox_status"
+
+      - name: Install Playwright Chromium, WebKit, and hosted dependencies
+        run: |
+          sudo find /etc/apt -maxdepth 2 -type f \( -name '*.list' -o -name '*.sources' \) -exec sed -i -E 's@http://([a-z]{2}\.)?archive\.ubuntu\.com/ubuntu@https://archive.ubuntu.com/ubuntu@g; s@http://security\.ubuntu\.com/ubuntu@https://security.ubuntu.com/ubuntu@g' {} +
+          pnpm --filter @deepseek-ai/dsh-web-frontend exec playwright install --with-deps chromium webkit
+
+      - name: Build and execute the Linux Office runtime
+        run: CI=true pnpm run prepare:primary-runtime --target linux-x64 --output "$RUNNER_TEMP/office-runtime" --cache "$RUNNER_TEMP/office-runtime-downloads"
+
+      - name: Run compatibility, snapshot, and artifact gates
+        env:
+          DSH_GATE_FAIL_FAST: '1'
+        run: pnpm run check:ci:consumers
