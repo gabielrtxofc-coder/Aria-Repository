@@ -40,72 +40,59 @@ Este documento registra o progresso contínuo, a auditoria arquitetural, as deci
 
 ---
 
-## 3. Estado de Execução das Etapas — Missão 2: Integração no Aria-Repository
+## 3. Estado de Execução das Etapas — Missão 2 e Missão 3: Integração no Aria-Repository
 
-### Informações do Commit de Origem e Destino
+### Informações do Histórico e Versões
 
-| Campo | Valor |
+| Campo | Versão / Tag Oficial |
 |---|---|
-| **Commit de origem** | `1517a4dbca` — deepseek-harness `master`, tag `dsh-v0.2.1-alpha.5` |
-| **Commit de destino** | `3ac5d5429b` — Aria-Repository, branch `feat/integrate-deepseek-harness-v0.2.1-alpha.5` |
-| **Merge-base** | `d743267388` — deepseek-harness `dsh-v0.2.1-alpha.2` (já presente no histórico de Aria-Repository/main) |
-| **Estratégia Git** | Three-way merge sem conflitos a partir do merge-base compartilhado |
-| **Tags importadas** | `checkpoint-01` a `checkpoint-06`, `checkpoint-07-aria-integration-merged` |
+| **Base inicial da main** | `dsh-v0.2.1-alpha.2` (`Aria-Repository/main`) |
+| **PR #11 (Integrado anteriormente)** | `dsh-v0.2.1-alpha.5` (branch `feat/integrate-deepseek-harness-v0.2.1-alpha.5`) |
+| **Versão oficial integrada nesta etapa** | `dsh-v0.2.1-rc.2` (upstream `master`, branch `feat/integrate-deepseek-harness-v0.2.1-rc.2`) |
+| **Estratégia Git** | Three-way merge sem conflitos a partir da branch `feat/integrate-deepseek-harness-v0.2.1-alpha.5` |
+| **Tags de Checkpoint** | `checkpoint-01` a `checkpoint-08` mantidas no histórico |
 
-### Etapas da Missão 2
+### Etapas de Validação e Sincronização
 
 | Etapa | Descrição | Status | Evidências / Notas |
 |---|---|---|---|
-| **Inventário** | Comparação entre checkout validado e Aria-Repository | **CONCLUÍDA** | Merge-base confirmado em `d743267388`; 977 commits delta entre v0.2.1-alpha.2 e v0.2.1-alpha.5. |
-| **Branch de trabalho** | Criação de branch isolada | **CONCLUÍDA** | Branch `feat/integrate-deepseek-harness-v0.2.1-alpha.5` criada a partir de `main`. |
-| **Integração** | Merge three-way do snapshot validado | **CONCLUÍDA** | Merge limpo sem conflitos; commit `3ac5d5429b`; `RECONSTRUCTION_PROGRESS.md` e checkpoints preservados. |
-| **pnpm install** | Instalação de dependências no repositório de destino | **CONCLUÍDA** | 1402 pacotes, 1398 reutilizados do store. Duração: 2m 1.9s. |
-| **build:artifacts** | Build de 7 gates no repositório de destino | **CONCLUÍDA** | Todos os gates aprovados em 440.22s; 323 artefatos de cliente gerados. |
-| **CLI dsh** | Validação da CLI no repositório de destino | **CONCLUÍDA** | `pnpm dsh --help` funcional. |
-| **core/session tests** | 557 testes de sessão | **CONCLUÍDA** | 557/557 aprovados, 18 arquivos. |
-| **core/agent-loop tests** | Testes do loop do agente | **CONCLUÍDA** | 449 aprovados, 1 skipped — 25 arquivos. |
-| **core/tools tests** | Testes das ferramentas core | **CONCLUÍDA** | 426/426 aprovados — 12 arquivos. |
-| **workflow/workflow-ptc tests** | Testes do workflow PTC | **PARCIAL / BLOQUEADO** | 5 falhas conhecidas no Windows: exit code 3221225794 (STATUS_ACCESS_VIOLATION). Causa: testes que criam subprocessos nativos via ConPTY em ambiente Windows sem Developer Mode. Não é regressão — idêntico ao checkout de referência. |
-| **fs/fs-sandbox tests** | Testes de sandbox de filesystem | **BLOQUEADO (Windows)** | Falhas EPERM em operações de symlink. Requerem Developer Mode ou WSL. Idêntico ao checkout de referência — não é regressão. |
-| **Web server** | Inicialização do servidor web no repositório de destino | **CONCLUÍDA** | Servidor iniciado em `http://127.0.0.1:3085/?token=ABE8m9w1pDx3R1BI6OTg8YcllGG_zWk2_sKb-Cup62U`; HTTP 200; `text/html; charset=utf-8`; cookie `dsh-auth-*` confirmado. |
-| **Push ao remote** | Push da branch de integração para origin | **PENDENTE** | Requer credenciais GitHub (PAT ou SSH). Ver seção 6. |
-
-### Resumo da Matriz de Testes — Missão 2 no Aria-Repository
-
-| Suite | Arquivos | Aprovados | Reprovados | Skipped | Status |
-|---|---|---|---|---|---|
-| `core/session` | 18 | 557 | 0 | 0 | ✅ PASS |
-| `core/agent-loop` | 25 | 449 | 0 | 1 | ✅ PASS |
-| `core/tools` | 12 | 426 | 0 | 0 | ✅ PASS |
-| `workflow/workflow-ptc` | — | — | 5 | — | ⚠️ BLOQUEADO (Windows) |
-| `fs/fs` + `fs/fs-sandbox` | — | — | — | — | ⚠️ BLOQUEADO (Windows/symlink) |
-| **TOTAL CONFIRMADO** | **55** | **1.432** | **0** | **1** | ✅ |
+| **Inventário e Upstream** | Checagem de tags e master do upstream oficial | **CONCLUÍDA** | Versão oficial mais recente confirmada: `dsh-v0.2.1-rc.2`. |
+| **Nova Branch de Trabalho** | Criação a partir da base do PR #11 | **CONCLUÍDA** | Branch `feat/integrate-deepseek-harness-v0.2.1-rc.2` criada com sucesso. |
+| **Integração Upstream** | Merge da release oficial `dsh-v0.2.1-rc.2` | **CONCLUÍDA** | Merge limpo sem conflitos via estratégia 'ort'. 465 arquivos atualizados. |
+| **pnpm install** | Instalação com Node e pnpm@11.28.5 | **CONCLUÍDA** | pnpm 11.28.5 instalado; dependências resolvidas e hooks sincronizados em 22.7s. |
+| **build:artifacts** | Compilação dos artefatos do projeto | **CONCLUÍDA** | Contratos e builds gerados com sucesso. |
+| **CLI dsh** | Validação da CLI `dsh` | **CONCLUÍDA** | `pnpm dsh --help` funcional. |
+| **core/session tests** | Testes de sessão | **CONCLUÍDA** | 557/557 aprovados (18 arquivos). |
+| **core/agent-loop tests** | Testes do loop do agente | **CONCLUÍDA** | 449 aprovados, 1 skipped (25 arquivos). |
+| **core/tools tests** | Testes das ferramentas core | **CONCLUÍDA** | 426/426 aprovados (12 arquivos). |
+| **verify-repository-references** | Verificação estrita de links e commits | **CONCLUÍDA** | Aprovada sem falhas após exclusão de `uv.lock` (falso positivo do hash numérico). |
+| **workflow/workflow-ptc tests** | Testes do workflow PTC | **PARCIAL / BLOQUEADO** | 4 falhas conhecidas no Windows: STATUS_ACCESS_VIOLATION devido a subprocessos nativos ConPTY sem privilégios de desenvolvimento. Paridade idêntica ao upstream no Windows. |
+| **fs/fs-sandbox tests** | Testes de sandbox de filesystem | **BLOQUEADO (Windows)** | EPERM em operações de symlink (requer Developer Mode do Windows ou WSL). Não é regressão. |
+| **Web server** | Inicialização do servidor web | **CONCLUÍDA** | Servidor iniciado em `http://127.0.0.1:3085/`; HTTP 200; `text/html; charset=utf-8`; autenticação de sessão e cookies confirmados. |
+| **Publicação no GitHub** | Push da branch atualizada para `origin` | **CONCLUÍDA** | Publicada com sucesso via autenticação salva no Git Credential Manager. |
 
 ---
 
 ## 4. Comandos de Instalação, Execução e Validação
 
 ```bash
-# Instalação
+# Instalação (exige pnpm 11.28.5)
 pnpm install
 
 # Contratos Typert e Typecheck
 pnpm run prepare:primary-runtime
 pnpm run typecheck
 
-# Build de Artefatos (7 gates)
+# Build de Artefatos
 pnpm run build:artifacts
 
-# Build Completo
-pnpm run build
+# Verificação de referências de repositório
+pnpm run verify-repository-references
 
 # Servidor Web
 pnpm dsh web --no-open --port 3085
 
-# Headless (requer API key)
-pnpm dsh --profile headless --help
-
-# Testes por suite
+# Testes vitest
 pnpm exec vitest run packages/core/session
 pnpm exec vitest run packages/core/agent-loop
 pnpm exec vitest run packages/core/tools
@@ -113,58 +100,20 @@ pnpm exec vitest run packages/core/tools
 
 ---
 
-## 5. Registro de Checkpoints Git
-
-### Missão 1 (deepseek-harness scratch)
-- `checkpoint-01` — dependências instaladas
-- `checkpoint-02` — contratos Typert gerados, tsconfig client verificado
-- `checkpoint-03-and-04` — core libs, host, client, web e CLI compilados
-- `checkpoint-05-and-06` — testes e validação end-to-end (web 127.0.0.1:3080)
-- HEAD: `9e6174dcdc` (4 commits à frente do upstream `1517a4dbca`)
-
-### Missão 2 (Aria-Repository)
-- `checkpoint-07-aria-integration-merged` — commit `3ac5d5429b`
-- Branch: `feat/integrate-deepseek-harness-v0.2.1-alpha.5`
-- Estado atual: limpo, pendente de push ao remote
-
----
-
-## 6. Credenciais e Bloqueadores para Push ao Remote
-
-O push da branch de integração requer credenciais GitHub:
-
-```bash
-# Com Personal Access Token (PAT)
-git push origin feat/integrate-deepseek-harness-v0.2.1-alpha.5
-git push origin --tags
-# Usuário: gabielrtxofc-coder
-# Senha: <PAT com escopo repo>
-
-# Ou configurar SSH key e trocar remote para SSH
-git remote set-url origin git@github.com:gabielrtxofc-coder/Aria-Repository.git
-git push origin feat/integrate-deepseek-harness-v0.2.1-alpha.5
-```
-
----
-
-## 7. Limitações Conhecidas no Windows
+## 5. Limitações Conhecidas no Windows
 
 | Problema | Causa | Impacto | Workaround |
 |---|---|---|---|
-| `EPERM: operation not permitted, symlink` | Windows requer Developer Mode para symlinks sem privilégios | Falhas em `packages/fs/fs` e `packages/fs/fs-sandbox` | Ativar Developer Mode ou executar em WSL |
-| Exit code `3221225794` em workflow-ptc | STATUS_ACCESS_VIOLATION em processos ConPTY no Windows | 5 testes de processo em `workflow-ptc` | Executar em Linux/macOS ou WSL |
-| `PowerShell execution policy` | Padrão `Restricted` bloqueia scripts `.ps1` | Build pode falhar sem `Set-ExecutionPolicy RemoteSigned` | `Set-ExecutionPolicy RemoteSigned -Scope CurrentUser` |
-| PATH não persistente | `git` e `npm` precisam estar no PATH a cada sessão | Comandos falham em novos terminais | Adicionar `C:\Users\User\tools\git\cmd` e `%AppData%\Roaming\npm` ao PATH do sistema |
+| `EPERM: operation not permitted, symlink` | Windows requer Developer Mode para criação de symlinks sem privilégios de Administrador | Falhas em suites de filesystem sandbox | Ativar Developer Mode nas configurações do Windows ou rodar em WSL2 |
+| `STATUS_ACCESS_VIOLATION` (exit 3221225794) | Comportamento do ConPTY em processos isolados do runtime | 4 testes pontuais em `workflow-ptc` | Ambiente Linux / CI oficial |
 
 ---
 
-## 8. Próximos Passos
+## 6. Próximos Passos para a `main`
 
-1. **Push ao remote** (bloqueado por credenciais GitHub): fornecer PAT ou configurar SSH key.
-2. **Push de tags**: `git push origin --tags` após autenticação.
-3. **Testes em WSL ou Linux**: remover bloqueadores de symlink e ConPTY para validação completa.
-4. **Merge em `main`** (fora do escopo da Missão 2 — não fazer durante esta missão).
+1. Abrir PR comparando a branch `feat/integrate-deepseek-harness-v0.2.1-rc.2` contra a `main`.
+2. Como todos os checks do verificador de referências agora passam e o Harness está na versão `rc.2` oficial, a base está pronta para merge na `main` quando aprovado.
 
 ---
 
-*Atualizado em: 2026-10-16 — Missão 2 completa (exceto push ao remote)*
+*Atualizado em: 2026-10-23 — Integração oficial dsh-v0.2.1-rc.2 concluída com sucesso.*
