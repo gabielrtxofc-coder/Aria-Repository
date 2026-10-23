@@ -1,8 +1,5 @@
 name: fase3-detalhes
 
-# Coleta de detalhes da Fase 3 (temporário). Publica os resultados como
-# anotações para leitura via API, já que os logs brutos são inacessíveis.
-
 on:
   push:
     branches: [arena/68e80fa4-aria-repository]
@@ -17,7 +14,7 @@ env:
 
 jobs:
   web:
-    name: web - detalhes HTTP
+    name: web-detalhes
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
@@ -34,38 +31,35 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Build artifacts
         run: pnpm run build:artifacts
-      - name: Servidor web: status, cabecalhos e conteudo
+      - name: Subir servidor e medir resposta
         run: |
           (pnpm dsh web --no-open --port 3085 > /tmp/web.log 2>&1 &)
+          code=000
           for i in $(seq 1 60); do
             code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3085/ || true)
             [ "$code" != "000" ] && break
             sleep 2
           done
-          echo "::notice title=WEB_STATUS::HTTP $code"
           ct=$(curl -s -o /tmp/page.html -w "%{content_type}" http://127.0.0.1:3085/)
-          echo "::notice title=WEB_CONTENT_TYPE::${ct}"
-          echo "::notice title=WEB_BYTES::$(wc -c < /tmp/page.html) bytes"
+          bytes=$(wc -c < /tmp/page.html)
           title=$(grep -oE "<title>[^<]*</title>" /tmp/page.html | head -1 | sed 's/<[^>]*>//g')
-          echo "::notice title=WEB_TITLE::${title:-<sem title>}"
-          inject=$(grep -oE 'dsh|deepseek' /tmp/page.html | head -1)
-          echo "::notice title=WEB_MARCA::${inject:-nenhuma}"
-          echo "::notice title=WEB_LOG::$(tail -6 /tmp/web.log | tr '\n' ' | ' | cut -c1-700)"
-      - name: Rota de API responde?
-        run: |
-          for path in /api /health /api/health /api/session; do
-            c=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:3085$path" || true)
-            echo "::notice title=ROTA $path::$c"
+          logtail=$(tail -6 /tmp/web.log | tr '\n' ' ')
+          echo "::warning::WEB status=$code content_type=$ct bytes=$bytes title=[$title]"
+          echo "::warning::WEB log=[$logtail]"
+          for p in /api /health /api/health; do
+            c=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:3085$p" || true)
+            echo "::warning::ROTA $p -> $c"
           done
-      - name: Arquivos estaticos do app carregam?
-        run: |
-          for f in $(grep -oE '(src|href)="[^"]*\.(js|css)"' /tmp/page.html | sed -E 's/.*="([^"]*)"/\1/' | head -4); do
-            c=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:3085$f" || true)
-            echo "::notice title=ASSET $f::$c"
-          done
+          asset=$(grep -oE '(src|href)="[^"]*\.js"' /tmp/page.html | sed -E 's/.*="([^"]*)"/\1/' | head -1)
+          if [ -n "$asset" ]; then
+            ac=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:3085$asset" || true)
+            echo "::warning::ASSET $asset -> $ac"
+          else
+            echo "::warning::ASSET nenhum script encontrado no HTML"
+          fi
 
   headless:
-    name: headless - capturar erro
+    name: headless-detalhes
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
@@ -80,23 +74,20 @@ jobs:
         with:
           node-version: ${{ env.PRIMARY_NODE_VERSION }}
       - run: pnpm install --frozen-lockfile
-      - name: dsh headless --help
-        run: |
-          pnpm dsh headless --help 2>&1 | head -20
-          echo "::notice title=HEADLESS_HELP_ENVIADO::ver log do passo"
-      - name: Executar com provider falso e capturar a mensagem
+      - name: Executar headless com provider falso
         run: |
           set +e
-          timeout 200 pnpm dsh headless \
-            --patch apps/cli/tests/profiles/headless/tests/fixtures/headless-profile.patch.yml \
-            "Responda com a palavra OK." > /tmp/hl.out 2> /tmp/hl.err
+          timeout 200 pnpm dsh headless --patch apps/cli/tests/profiles/headless/tests/fixtures/headless-profile.patch.yml "Responda OK." > /tmp/hl.out 2> /tmp/hl.err
           rc=$?
-          echo "::notice title=HEADLESS_EXIT::codigo $rc"
-          echo "::error title=HEADLESS_STDERR::$(tail -12 /tmp/hl.err | tr '\n' ' | ' | cut -c1-900)"
-          echo "::notice title=HEADLESS_STDOUT::$(tail -6 /tmp/hl.out | tr '\n' ' | ' | cut -c1-700)"
+          err=$(tail -10 /tmp/hl.err | tr '\n' ' ' | cut -c1-800)
+          out=$(tail -5 /tmp/hl.out | tr '\n' ' ' | cut -c1-500)
+          echo "::warning::HEADLESS exit=$rc"
+          echo "::warning::HEADLESS stderr=[$err]"
+          echo "::warning::HEADLESS stdout=[$out]"
+          echo "detalhes do headless coletados (nao falha o job)"
 
   desktop:
-    name: desktop - compila e empacota?
+    name: desktop-build
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
@@ -111,16 +102,13 @@ jobs:
         with:
           node-version: ${{ env.PRIMARY_NODE_VERSION }}
       - run: pnpm install --frozen-lockfile
-      - name: Build do desktop (compilacao TS + bundle, sem abrir janela)
+      - name: Compilar o desktop sem abrir janela
         run: |
           set +e
           pnpm run build:desktop > /tmp/desktop.log 2>&1
           rc=$?
-          echo "::notice title=DESKTOP_BUILD_EXIT::codigo $rc"
-          echo "::notice title=DESKTOP_BUILD_TAIL::$(tail -8 /tmp/desktop.log | tr '\n' ' | ' | cut -c1-800)"
-          exit $rc
-      - name: Artefatos gerados
-        if: always()
-        run: |
+          tail=$(tail -6 /tmp/desktop.log | tr '\n' ' ' | cut -c1-700)
           n=$(find apps/desktop/lib apps/desktop/dist -type f 2>/dev/null | wc -l)
-          echo "::notice title=DESKTOP_ARTEFATOS::${n} arquivos gerados"
+          echo "::warning::DESKTOP exit=$rc artefatos=$n"
+          echo "::warning::DESKTOP tail=[$tail]"
+          if [ $rc -ne 0 ]; then exit 1; fi
