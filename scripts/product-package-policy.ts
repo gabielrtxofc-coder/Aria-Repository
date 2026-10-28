@@ -20,6 +20,7 @@ export const PRODUCT_PACKAGE_POLICY: Readonly<Record<string, ProductPackagePolic
   'packages/computer-use/computer-use': { category: 'optional', reason: 'Service definition used by explicitly selected computer providers.' },
   'packages/lsp/lsp': { category: 'optional', reason: 'Service definition for deployment-configured language servers.' },
   'packages/lsp/lsp-stdio': { category: 'optional', reason: 'Requires an explicit server list and language-server executables.' },
+  'packages/llm/llm-model-fallback': { category: 'optional', reason: 'Model-route recovery requires an explicitly configured replacement chain.' },
   'packages/lsp/tool-lsp': { category: 'optional', reason: 'Model tools selected together with a configured LSP provider.' },
   'packages/ssh/ssh': { category: 'optional', reason: 'Explicit remote connection and helper configuration.' },
   'packages/ssh/ssh-helper-runtime': { category: 'optional', reason: 'Private executable carrier for explicitly configured SSH connections.' },

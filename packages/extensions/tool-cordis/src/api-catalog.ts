@@ -1560,6 +1560,29 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'modelRouting',
+    summary: 'Agent-scoped registry of recovery route overrides (`ctx.modelRouting`).',
+    description: 'Agent-scoped registry of recovery route overrides (`ctx.modelRouting`).\n\nEntries are live process state keyed by the Agent\'s own scoped context: no session event is written here, so a plugin that restores an override after a restart reads its own durable record first and then calls setOverride. An Agent scope that unwinds leaves no entry behind because the key is the disposed context itself.',
+    methods: [
+      {
+        signature: 'overrideFor(agentCtx: Context): ModelRouteOverride | undefined',
+        description: 'Read the recovery override recorded for one Agent scope.',
+        parameters: [{ name: 'agentCtx', description: 'the Agent\'s scoped context.' }],
+        returns: 'the override, or undefined while the Agent routes normally.',
+      },
+      {
+        signature: 'setOverride(agentCtx: Context, override: ModelRouteOverride): void',
+        description: 'Record or replace one Agent\'s recovery override.',
+        parameters: [{ name: 'agentCtx', description: 'the Agent\'s scoped context.' }, { name: 'override', description: 'replacement route and the route it replaces, both copied.' }],
+      },
+      {
+        signature: 'clearOverride(agentCtx: Context): void',
+        description: 'Drop one Agent\'s recovery override so the entry point\'s own selection routes again.',
+        parameters: [{ name: 'agentCtx', description: 'the Agent\'s scoped context.' }],
+      },
+    ],
+  },
+  {
     key: 'officeToPdf',
     summary: 'A provider lifetime owns all converters, queued calls, and temporary files.',
     description: 'A provider lifetime owns all converters, queued calls, and temporary files.',
@@ -6040,6 +6063,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'ModelReasoningEffort',
     declaration: 'export interface ModelReasoningEffort {\n    readonly id: string;\n    readonly name: string;\n    readonly description?: string;\n}',
+  },
+  {
+    name: 'ModelRouteOverride',
+    declaration: 'export interface ModelRouteOverride {\n    readonly route: ModelSelection;\n    readonly replaces: ModelSelection;\n}',
   },
   {
     name: 'ModEvents',

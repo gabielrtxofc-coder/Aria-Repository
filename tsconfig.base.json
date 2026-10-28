@@ -406,6 +406,7 @@
       "@deepseek-ai/dsh-llm-deepseek-account": ["./packages/llm/llm-deepseek-account/src"],
       "@deepseek-ai/dsh-llm-deepseek-api-key": ["./packages/llm/llm-deepseek-api-key/src"],
       "@deepseek-ai/dsh-llm-mock-server": ["./packages/test-support/llm-mock-server/src"],
+      "@deepseek-ai/dsh-llm-model-fallback": ["./packages/llm/llm-model-fallback/src"],
       "@deepseek-ai/dsh-llm-pi-ai": ["./packages/llm/llm-pi-ai/src"],
       "@deepseek-ai/dsh-llm-replay": ["./packages/test-support/llm-replay/src"],
       "@deepseek-ai/dsh-llm-retry": ["./packages/llm/llm-retry/src"],

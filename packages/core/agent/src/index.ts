@@ -13,6 +13,7 @@ import { scopeTarget } from '@deepseek-ai/dsh-scope'
 import type { Scoped } from '@deepseek-ai/dsh-scope'
 import type { SessionEvent, SessionId, SessionLogOffset } from '@deepseek-ai/dsh-session'
 import { installTurnArchiveAdmission } from './archive-admission.ts'
+import { ModelRouting } from './model-routing.ts'
 import type { Agent } from './types.ts'
 import type { AgentOptions, SessionStartSource } from './runtime-types.ts'
 
@@ -21,6 +22,7 @@ export * from './types.ts'
 export type * from './projection.ts'
 export * from './consumed-work.ts'
 export * from './model-selection.ts'
+export * from './model-routing.ts'
 export { agentCarrier, agentEvents, assembleContextFor, emitAgentEvent } from './dispatch.ts'
 export type { AgentEventDispatch, AgentSubjectEvent } from './dispatch.ts'
 
@@ -254,6 +256,9 @@ export class AgentRegistry extends Service {
 
   constructor(ctx: Context) {
     super(ctx, 'agents')
+    // Recovery route overrides live beside the registry so every composition
+    // that owns Agents can consult them without mounting another plugin.
+    new ModelRouting(ctx)
     ctx.inject(['typert'], (typeCtx) => {
       typeCtx.typert.lookups.register('agent', {
         parameter: 'agent',

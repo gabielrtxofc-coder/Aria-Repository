@@ -40,6 +40,25 @@ function sameRoute(left: ModelSelection, right: ModelSelection): boolean {
   return left.provider === right.provider && left.model === right.model
 }
 
+/**
+ * Resolve the route one step uses when a recovery plugin replaced an unusable route.
+ * The override is honored while the entry point still selects the route the
+ * recovery replaced, including when the entry point has no selection at all;
+ * any other explicit selection wins, so a user's later choice is never
+ * silently rewritten. Absent `ctx.modelRouting` (a composition without the
+ * Agent registry) means no override exists.
+ * @param agentCtx - the Agent's scoped context.
+ * @param selection - the entry point's live selection.
+ * @returns the replacement route, or undefined to use the entry point's selection.
+ */
+function recoveryRoute(agentCtx: Context, selection: ModelSelectionRef): ModelSelection | undefined {
+  const override = agentCtx.get('modelRouting')?.overrideFor(agentCtx)
+  if (override === undefined) return undefined
+  const chosen = selection.current
+  if (chosen === undefined || sameRoute(chosen, override.replaces)) return override.route
+  return undefined
+}
+
 function routeLabel(route: ModelSelection, other: ModelSelection): string {
   return route.provider === other.provider ? route.model : `${route.provider}/${route.model}`
 }
@@ -66,7 +85,10 @@ function modelSwitchNotice(previous: ModelSelection, selected: ModelSelection) {
  * its provider/model pair and effort to request config so a
  * concurrent switch takes effect on a later step instead of splitting the two
  * surfaces. An absent selected effort clears any inherited effort, restoring
- * the selected model's provider/default behavior.
+ * the selected model's provider/default behavior. A live recovery override
+ * registered on `ctx.modelRouting` replaces the entry point's route while that
+ * route is still the one the recovery replaced, so assembly, the request
+ * header, and the switch notice all describe the route actually used.
  *
  * A provider/model change appends a durable user-role notice to the next
  * admitted request. It compares the assembled selection with the latest
@@ -80,7 +102,7 @@ function modelSwitchNotice(previous: ModelSelection, selected: ModelSelection) {
  */
 export function installModelSelection(agentCtx: Context, selection: ModelSelectionRef): () => void {
   const disposeAssembly = agentCtx.on('system-prompt/assemble', async (_assembly, _context, next) => {
-    const selected = selection.current
+    const selected = recoveryRoute(agentCtx, selection) ?? selection.current
     const assembled = await next()
     selection.assembled = selected
     if (selected === undefined) return assembled
