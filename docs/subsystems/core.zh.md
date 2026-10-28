@@ -767,6 +767,38 @@ roots(): Agent[]
 
 Source: [`packages/core/agent/src/index.ts`](../../packages/core/agent/src/index.ts)
 
+<a id="ctxmodelrouting--modelrouting"></a>
+
+### `ctx.modelRouting` — `ModelRouting`
+
+Agent-scoped registry of recovery route overrides (`ctx.modelRouting`).
+
+Entries are live process state keyed by the Agent's own scoped context: no session event is written here, so a plugin that restores an override after a restart reads its own durable record first and then calls setOverride. An Agent scope that unwinds leaves no entry behind because the key is the disposed context itself.
+
+```ts cordis-catalog
+/**
+ * Read the recovery override recorded for one Agent scope.
+ * @param agentCtx - the Agent's scoped context.
+ * @returns the override, or undefined while the Agent routes normally.
+ */
+overrideFor(agentCtx: Context): ModelRouteOverride | undefined
+
+/**
+ * Record or replace one Agent's recovery override.
+ * @param agentCtx - the Agent's scoped context.
+ * @param override - replacement route and the route it replaces, both copied.
+ */
+setOverride(agentCtx: Context, override: ModelRouteOverride): void
+
+/**
+ * Drop one Agent's recovery override so the entry point's own selection routes again.
+ * @param agentCtx - the Agent's scoped context.
+ */
+clearOverride(agentCtx: Context): void
+```
+
+Source: [`packages/core/agent/src/model-routing.ts`](../../packages/core/agent/src/model-routing.ts)
+
 <a id="agent-events"></a>
 
 ### `agent/*` events

@@ -10340,6 +10340,494 @@
       }
     },
     {
+      "key": "event:llm/model-fallback-exhausted",
+      "kind": "event",
+      "event": "llm/model-fallback-exhausted",
+      "surface": false,
+      "digest": "5ec3cfab7b8fa276770aa156e6da80d70d44859361ff734b8c38f1d5c9f544b3",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "data",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "ignorable",
+                "type": 23,
+                "optional": true
+              },
+              {
+                "name": "seq",
+                "type": 15,
+                "optional": false
+              },
+              {
+                "name": "time",
+                "type": 15,
+                "optional": false
+              },
+              {
+                "name": "type",
+                "type": 24,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "attempted",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "category",
+                "type": 5,
+                "optional": false
+              },
+              {
+                "name": "failure",
+                "type": 14,
+                "optional": false
+              },
+              {
+                "name": "rejected",
+                "type": 16,
+                "optional": false
+              },
+              {
+                "name": "step",
+                "type": 15,
+                "optional": false
+              },
+              {
+                "name": "turn",
+                "type": 15,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "array",
+            "element": 3
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "model",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "provider",
+                "type": 4,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "union",
+            "types": [
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "auth"
+          },
+          {
+            "kind": "literal",
+            "value": "billing"
+          },
+          {
+            "kind": "literal",
+            "value": "configuration"
+          },
+          {
+            "kind": "literal",
+            "value": "context"
+          },
+          {
+            "kind": "literal",
+            "value": "quota"
+          },
+          {
+            "kind": "literal",
+            "value": "transient"
+          },
+          {
+            "kind": "literal",
+            "value": "unavailable"
+          },
+          {
+            "kind": "literal",
+            "value": "unknown"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "code",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "message",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "offloadImages",
+                "type": 15,
+                "optional": true
+              },
+              {
+                "name": "providerRetryAfterMs",
+                "type": 15,
+                "optional": true
+              },
+              {
+                "name": "requestId",
+                "type": 4,
+                "optional": true
+              },
+              {
+                "name": "status",
+                "type": 15,
+                "optional": true
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "array",
+            "element": 17
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "reason",
+                "type": 18,
+                "optional": false
+              },
+              {
+                "name": "route",
+                "type": 3,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "union",
+            "types": [
+              19,
+              20,
+              21,
+              22
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "capability-mismatch"
+          },
+          {
+            "kind": "literal",
+            "value": "already-attempted"
+          },
+          {
+            "kind": "literal",
+            "value": "model-unknown"
+          },
+          {
+            "kind": "literal",
+            "value": "provider-unregistered"
+          },
+          {
+            "kind": "literal",
+            "value": true
+          },
+          {
+            "kind": "literal",
+            "value": "llm/model-fallback-exhausted"
+          }
+        ]
+      }
+    },
+    {
+      "key": "event:llm/model-switched",
+      "kind": "event",
+      "event": "llm/model-switched",
+      "surface": false,
+      "digest": "b5d3ea31d045363f33aaaee00cfca7f1b193e162bfa293b5bc65468102af2f07",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "data",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "ignorable",
+                "type": 22,
+                "optional": true
+              },
+              {
+                "name": "seq",
+                "type": 13,
+                "optional": false
+              },
+              {
+                "name": "time",
+                "type": 13,
+                "optional": false
+              },
+              {
+                "name": "type",
+                "type": 23,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "category",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "failure",
+                "type": 11,
+                "optional": false
+              },
+              {
+                "name": "from",
+                "type": 14,
+                "optional": false
+              },
+              {
+                "name": "rejected",
+                "type": 15,
+                "optional": false
+              },
+              {
+                "name": "step",
+                "type": 13,
+                "optional": false
+              },
+              {
+                "name": "switchId",
+                "type": 12,
+                "optional": false
+              },
+              {
+                "name": "to",
+                "type": 14,
+                "optional": false
+              },
+              {
+                "name": "turn",
+                "type": 13,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "union",
+            "types": [
+              3,
+              4,
+              5,
+              6,
+              7,
+              8,
+              9,
+              10
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "auth"
+          },
+          {
+            "kind": "literal",
+            "value": "billing"
+          },
+          {
+            "kind": "literal",
+            "value": "configuration"
+          },
+          {
+            "kind": "literal",
+            "value": "quota"
+          },
+          {
+            "kind": "literal",
+            "value": "context"
+          },
+          {
+            "kind": "literal",
+            "value": "transient"
+          },
+          {
+            "kind": "literal",
+            "value": "unavailable"
+          },
+          {
+            "kind": "literal",
+            "value": "unknown"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "code",
+                "type": 12,
+                "optional": false
+              },
+              {
+                "name": "message",
+                "type": 12,
+                "optional": false
+              },
+              {
+                "name": "offloadImages",
+                "type": 13,
+                "optional": true
+              },
+              {
+                "name": "providerRetryAfterMs",
+                "type": 13,
+                "optional": true
+              },
+              {
+                "name": "requestId",
+                "type": 12,
+                "optional": true
+              },
+              {
+                "name": "status",
+                "type": 13,
+                "optional": true
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "model",
+                "type": 12,
+                "optional": false
+              },
+              {
+                "name": "provider",
+                "type": 12,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "array",
+            "element": 16
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "reason",
+                "type": 17,
+                "optional": false
+              },
+              {
+                "name": "route",
+                "type": 14,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "union",
+            "types": [
+              18,
+              19,
+              20,
+              21
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": "already-attempted"
+          },
+          {
+            "kind": "literal",
+            "value": "capability-mismatch"
+          },
+          {
+            "kind": "literal",
+            "value": "model-unknown"
+          },
+          {
+            "kind": "literal",
+            "value": "provider-unregistered"
+          },
+          {
+            "kind": "literal",
+            "value": true
+          },
+          {
+            "kind": "literal",
+            "value": "llm/model-switched"
+          }
+        ]
+      }
+    },
+    {
       "key": "event:llm/retry",
       "kind": "event",
       "event": "llm/retry",
@@ -22081,16 +22569,23 @@
     {
       "digest": "07e1a58c58b593f507b8e7f25723bb0aa42baae6e00f5ecfddf28cb1e64d3235",
       "names": [
+        "packages/llm/llm-model-fallback/src/types.ts#RouteRef",
         "packages/session/session-title/src/types.ts#SessionTitleModelIdentity",
         "packages/subagent/tool-subagent/src/model-selection.ts#AllowedModelRoute"
       ],
       "sources": [
+        "packages/llm/llm-model-fallback/src/types.ts:23",
         "packages/session/session-title/src/types.ts:20",
         "packages/subagent/tool-subagent/src/model-selection.ts:9"
       ]
     },
     {
       "digest": "07eccc9ea2f9b5439d76cc77d5e062936677d43f07a23da749819b0a22ee36b7",
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "080f21b8d85eeacccf7169431dc533562d637eac390c7d71cd215f0003d42b39",
       "names": [],
       "sources": []
     },
@@ -22187,6 +22682,11 @@
       "sources": []
     },
     {
+      "digest": "0e6c6dbfdaaa83e0ca92dd55bfaadd00ff5a06ddbc9718dfeff09df130c3d2e6",
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "0e7b2a97f54f1afdb8cdfad1635abe9145327db539bfb69b4045c19d8c17755d",
       "names": [],
       "sources": []
@@ -22238,6 +22738,15 @@
       "names": [],
       "sources": [
         "packages/experimental/hook-protocol/src/types.ts:19"
+      ]
+    },
+    {
+      "digest": "11ac22c7c44a678bb780a3cea9edfb069d43f8ed68e868975b6c40f32f13de16",
+      "names": [
+        "packages/llm/llm-model-fallback/src/types.ts#ModelSwitchedEventData"
+      ],
+      "sources": [
+        "packages/llm/llm-model-fallback/src/types.ts:75"
       ]
     },
     {
@@ -22794,12 +23303,26 @@
       ]
     },
     {
+      "digest": "3461575be9f2df8f1c5e50bda8e14c9bbcb25c1e8ddbff4eadb5a7082b67904d",
+      "names": [
+        "packages/llm/llm-model-fallback/src/types.ts#CandidateRejectionReason"
+      ],
+      "sources": [
+        "packages/llm/llm-model-fallback/src/types.ts:60"
+      ]
+    },
+    {
       "digest": "34d1ab5c5df378186d6054b1a1beea9a41e41965d6f336f0bc0025c441a82e66",
       "names": [],
       "sources": []
     },
     {
       "digest": "35203ba7ad5ef6f97d556b85df20ae98f04f09c65748cecdf8eefdb8b6405ffc",
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "36c14c689df677b471d283d711ab4c0250ad22ced2403a1f4ac3759ebc527817",
       "names": [],
       "sources": []
     },
@@ -22863,6 +23386,11 @@
     },
     {
       "digest": "3b4f2c9ef2c1217eac596c7b070173cb7896e2fae09e729bc7c56c801e56bb29",
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "3b850787a14335e89cf81db9bb7dfcae0fb3743947fcc7e38fbf6bab4eaa5e93",
       "names": [],
       "sources": []
     },
@@ -23056,6 +23584,11 @@
       "sources": []
     },
     {
+      "digest": "4a0e256308226cbc5a150a9bfc562147d7f034191f4682741a658c70e079a5fe",
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "4a9bef9f27a942520cc2279ca7dd3082556e4bff543f66b5c0333e1bbed1cd86",
       "names": [
         "packages/subagent/subagent/src/continuation-messages.ts#AgentMessageSource"
@@ -23126,6 +23659,7 @@
         "packages/goal/goal/src/types.ts#GoalId",
         "packages/interaction/commands/src/brand.ts#CommandId",
         "packages/interaction/user-approval/src/types.ts#ApprovalRequestId",
+        "packages/llm/llm-model-fallback/src/types.ts#ModelSwitchId",
         "packages/llm/llm-retry/src/brand.ts#RetryId",
         "packages/llm/llm/src/brand.ts#MessageId",
         "packages/llm/llm/src/brand.ts#ProviderRequestId",
@@ -23151,6 +23685,7 @@
         "packages/goal/goal/src/types.ts:17",
         "packages/interaction/commands/src/brand.ts:31",
         "packages/interaction/user-approval/src/types.ts:17",
+        "packages/llm/llm-model-fallback/src/types.ts:11",
         "packages/llm/llm-retry/src/brand.ts:4",
         "packages/llm/llm/src/brand.ts:16",
         "packages/llm/llm/src/brand.ts:31",
@@ -23161,6 +23696,11 @@
         "packages/session/session-title/src/types.ts:17",
         "packages/workflow/workflow/src/types.ts:13"
       ]
+    },
+    {
+      "digest": "4cfae79ae182b1830bb914fea025b8b7d248659feaf02ee5c7a75092ac01f667",
+      "names": [],
+      "sources": []
     },
     {
       "digest": "4e011753f8263f436efaabfbb3b4db53a98fc55342c5ded2daf7208b217be159",
@@ -23289,6 +23829,11 @@
     },
     {
       "digest": "557e148d30b79ee48645850832b30c717d7c3b64641deb5d6133b8b4e91ee0b8",
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "55f4d537e37ee6255500bf2f2820a3aeda10041ce851caa66c4ff0ff397c33c0",
       "names": [],
       "sources": []
     },
@@ -23435,7 +23980,21 @@
       "sources": []
     },
     {
+      "digest": "5e863737b1e3ceb2e86f3870a12f3373bbd4cc7f16c23e460078e75549f5c3ce",
+      "names": [
+        "packages/llm/llm-model-fallback/src/types.ts#ModelFailureCategory"
+      ],
+      "sources": [
+        "packages/llm/llm-model-fallback/src/types.ts:39"
+      ]
+    },
+    {
       "digest": "5ebce1317eacd2c148456627a09668e927ee15c204f0643f5ea76b46b54a2647",
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "5ec3cfab7b8fa276770aa156e6da80d70d44859361ff734b8c38f1d5c9f544b3",
       "names": [],
       "sources": []
     },
@@ -23450,6 +24009,11 @@
     },
     {
       "digest": "5f26a6c20b37632f8f57729d171c671def4683d994ac6257a8dffcd855101627",
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "5f5a6d9ed6dea2fdd4a7b5162a5996ecf52ac8965263ebe84ee637bc51ac77c1",
       "names": [],
       "sources": []
     },
@@ -23478,6 +24042,11 @@
       "sources": []
     },
     {
+      "digest": "61f9055e0c64d1f0208e2b0a04e67c33010041f762a8ce41c4f5fa8cf9f7547c",
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "6292bcbedaa97feaec5b48a03bb8144b581b93309d9d6c905f26da7a6a7a0a4f",
       "names": [],
       "sources": []
@@ -23499,6 +24068,15 @@
       ],
       "sources": [
         "packages/subagent/subagent/src/descriptor.ts:72"
+      ]
+    },
+    {
+      "digest": "6556e2354bdda8227305e4be1ce43566d9fda6cd90ccfc694e8b898073119f78",
+      "names": [
+        "packages/llm/llm-model-fallback/src/types.ts#RejectedCandidate"
+      ],
+      "sources": [
+        "packages/llm/llm-model-fallback/src/types.ts:67"
       ]
     },
     {
@@ -24039,6 +24617,11 @@
       ]
     },
     {
+      "digest": "8997bdd4c37a77dac94a89d0dbe051eba4b57289da59057611f22967553e0523",
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "89b2edff547be1ecfcd78ef18aeeb3cf507fcbf7d6093ec04fb111ef4c8e8a97",
       "names": [
         "packages/llm/llm/src/message.ts#UserMessage"
@@ -24103,6 +24686,15 @@
       "names": [],
       "sources": [
         "packages/llm/llm/src/types.ts:160"
+      ]
+    },
+    {
+      "digest": "8e4b42694c217baeadf2eaa5f56f0fb61f0b178622fe226c3107eb3ca9e793f4",
+      "names": [
+        "packages/llm/llm-model-fallback/src/types.ts#ModelFallbackExhaustedEventData"
+      ],
+      "sources": [
+        "packages/llm/llm-model-fallback/src/types.ts:95"
       ]
     },
     {
@@ -24303,6 +24895,11 @@
     },
     {
       "digest": "9b4fd974c124c83743efe030ba4e1250e087505f3f74588716a521fb8d453267",
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "9c7bba70285d8ec5a756bd25ac81724bfad7bd4fe5627bf73a281c4f041e0ede",
       "names": [],
       "sources": []
     },
@@ -24746,6 +25343,11 @@
       "sources": []
     },
     {
+      "digest": "b5d3ea31d045363f33aaaee00cfca7f1b193e162bfa293b5bc65468102af2f07",
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "b63b089a00b3b9357675b3e0c3d3e9aa4fdbda1fba9c91a6b0c59ffdbb89f505",
       "names": [
         "packages/schedule/schedule/src/types.ts#LegacyAtScheduleRecord"
@@ -25105,6 +25707,11 @@
       "sources": []
     },
     {
+      "digest": "d66ef48eda694ca7fba03b76f6e6ab87f6cc3d62e5b7be9bea54e05e85ec48e6",
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "d6e654b88b584fcdf290a56802b1730bc7b9847ae86baa4265ab7769eb48990c",
       "names": [],
       "sources": []
@@ -25203,6 +25810,11 @@
     },
     {
       "digest": "de30b1fa12c75f81df6aa4096e1595296d2d04e2be14a7c29849cf8028b79048",
+      "names": [],
+      "sources": []
+    },
+    {
+      "digest": "de8e3ca30073baeed899cfa0bb83c3f5ffde2619c14d6b1732874a0caa0f27d7",
       "names": [],
       "sources": []
     },

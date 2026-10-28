@@ -1738,6 +1738,60 @@ export interface Config extends ProtocolConfig {
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-llm-deepseek-api-key -->
 
+<!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-llm-model-fallback -->
+<a id="deepseek-aidsh-llm-model-fallback"></a>
+
+## `@deepseek-ai/dsh-llm-model-fallback`
+
+- `inject`: `agents` · `sessionProjections` · `llm`
+- `source`: [`packages/llm/llm-model-fallback/src/index.ts:45`](../packages/llm/llm-model-fallback/src/index.ts)
+
+```ts config-catalog
+/** Plugin configuration for model-route fallback. */
+export interface Config {
+  /** Ordered replacement routes; an empty list leaves the failure terminal. */
+  chain: ModelFallbackCandidateConfig[]
+  /**
+   * Failure categories that may switch routes. Defaults to
+   * `transient`, `unavailable`, `quota`, and `billing`; `auth` switching is
+   * opt-in because a malformed credential is a configuration defect.
+   */
+  switchOn?: ModelFailureCategory[]
+  /** Switches allowed in one turn; defaults to the chain length. */
+  maxSwitchesPerTurn?: number
+}
+
+/** One configured replacement route. */
+export interface ModelFallbackCandidateConfig {
+  /** Registered provider route. */
+  provider: string
+  /** Provider-owned model id. */
+  model: string
+  /** Adapter-owned reasoning effort for this route; omission uses the route default. */
+  reasoningEffort?: string
+}
+
+/**
+ * How a failed model request is classified for recovery.
+ *
+ * `transient` and `unavailable` may succeed on the same route later;
+ * `quota`, `billing`, and `auth` describe a route that cannot serve the request
+ * until an operator intervenes; `configuration` and `context` are request or
+ * deployment defects that another model cannot fix; `unknown` covers codes
+ * this build does not recognize.
+ */
+export type ModelFailureCategory =
+  | 'transient'
+  | 'unavailable'
+  | 'quota'
+  | 'billing'
+  | 'auth'
+  | 'configuration'
+  | 'context'
+  | 'unknown'
+```
+<!-- END GENERATED config-catalog:@deepseek-ai/dsh-llm-model-fallback -->
+
 <!-- BEGIN GENERATED config-catalog:@deepseek-ai/dsh-llm-pi-ai -->
 <a id="deepseek-aidsh-llm-pi-ai"></a>
 
