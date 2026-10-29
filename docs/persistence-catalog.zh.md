@@ -25,7 +25,7 @@
 | `JsonlHeaderLine` | header | `18ee62b8900a4c3d046700f05d7a4d49d6cab2a660a020c87481d1603dd8bd4f` | [`HeaderLine`](#persistence-type-sha256-18ee62b8900a4c3d046700f05d7a4d49d6cab2a660a020c87481d1603dd8bd4f) |
 | `SessionEventEnvelope` | envelope | `5776e5553ff2dfe3f5bc202dbb1e7c9f93e35a531aebb7764c23b2b6153b2ccc` | [`union (3 variants)`](#persistence-type-sha256-5776e5553ff2dfe3f5bc202dbb1e7c9f93e35a531aebb7764c23b2b6153b2ccc) |
 | `event:agent-preset/selected` | event | `a10c17474eaf2ddab7095a099e0fe3d046fc18e56c3e344fc8894c05ff9ef97b` | [`{ type: "agent-preset/selected" }`](#persistence-type-sha256-a10c17474eaf2ddab7095a099e0fe3d046fc18e56c3e344fc8894c05ff9ef97b) |
-| `event:agent/inbox/spliced` | event | `9a36727716d0e73f681f3b725e7f28f89417c68174c8af0ff2b1ef52b08326a0` | [`{ type: "agent/inbox/spliced" }`](#persistence-type-sha256-9a36727716d0e73f681f3b725e7f28f89417c68174c8af0ff2b1ef52b08326a0) |
+| `event:agent/inbox/spliced` | event | `c78ff87eb84aff1837d01c1afe9ad49cd57686ae77f93f1bd9fe4dfcc65ec6db` | [`{ type: "agent/inbox/spliced" }`](#persistence-type-sha256-c78ff87eb84aff1837d01c1afe9ad49cd57686ae77f93f1bd9fe4dfcc65ec6db) |
 | `event:approval/asked` | event | `3bfeb47b58606f4661904bc723da612782214c463d01e6d61cd6d6193d7374e1` | [`{ type: "approval/asked" }`](#persistence-type-sha256-3bfeb47b58606f4661904bc723da612782214c463d01e6d61cd6d6193d7374e1) |
 | `event:approval/decided` | event | `bb1ab3d08f49a9f3b265f844cd78d5c49813062a7b34b54904b426f85d0ff6e3` | [`{ type: "approval/decided" }`](#persistence-type-sha256-bb1ab3d08f49a9f3b265f844cd78d5c49813062a7b34b54904b426f85d0ff6e3) |
 | `event:approval/policy` | event | `26718e15e7e395bce9642dba5bbe09b3b1a4ce2213d20d566cd9207d7fc5fb78` | [`{ type: "approval/policy" }`](#persistence-type-sha256-26718e15e7e395bce9642dba5bbe09b3b1a4ce2213d20d566cd9207d7fc5fb78) |
@@ -38,7 +38,7 @@
 | `event:compaction/start` | event | `db874d463b0fdec77e9da1c4568f37cb70bd6596781eb93800db44fb8a116965` | [`{ type: "compaction/start" }`](#persistence-type-sha256-db874d463b0fdec77e9da1c4568f37cb70bd6596781eb93800db44fb8a116965) |
 | `event:compaction/summary` | event | `e2f9a41e0989f54ed8cee80f8db2bcf9d60a5c810dc9d45b83fa050b9dce7602` | [`{ type: "compaction/summary" }`](#persistence-type-sha256-e2f9a41e0989f54ed8cee80f8db2bcf9d60a5c810dc9d45b83fa050b9dce7602) |
 | `event:deliverables/presented` | event | `13d3d180f977bf78081d487ffa0ecb75857349bcab29a5a3fb48189fca2a6176` | [`{ type: "deliverables/presented" }`](#persistence-type-sha256-13d3d180f977bf78081d487ffa0ecb75857349bcab29a5a3fb48189fca2a6176) |
-| `event:developer/message` | event | `ba5b10ea77d68f4a29439a9bd2a14f6a560acf55731749d57237757cc72fbc06` | [`{ type: "developer/message" }`](#persistence-type-sha256-ba5b10ea77d68f4a29439a9bd2a14f6a560acf55731749d57237757cc72fbc06) |
+| `event:developer/message` | event | `5b1d3ad6fa8cd4ce08d2da5b48bab3f694dda8467107736d370a75e775974f3f` | [`{ type: "developer/message" }`](#persistence-type-sha256-5b1d3ad6fa8cd4ce08d2da5b48bab3f694dda8467107736d370a75e775974f3f) |
 | `event:feedback/message-delete` | event | `3ee93b06f3a125850337602bcdf155d2538c43a5c944ec55b1b3c365152d6796` | [`{ type: "feedback/message-delete" }`](#persistence-type-sha256-3ee93b06f3a125850337602bcdf155d2538c43a5c944ec55b1b3c365152d6796) |
 | `event:feedback/message-put` | event | `b5086d249e8502e9ead1d39156bb8d559bde7951cac0f14ce150345b4e42a2bf` | [`{ type: "feedback/message-put" }`](#persistence-type-sha256-b5086d249e8502e9ead1d39156bb8d559bde7951cac0f14ce150345b4e42a2bf) |
 | `event:feedback/record` | event | `b54940ff095c17e874c5be03815f4c2145a256cf3a1d34dae4ab2f7769dfffe8` | [`{ type: "feedback/record" }`](#persistence-type-sha256-b54940ff095c17e874c5be03815f4c2145a256cf3a1d34dae4ab2f7769dfffe8) |
@@ -46,8 +46,8 @@
 | `event:hook/invoked` | event | `8a6e1ec9e8db346b0e02f027db73c07a94f067a26d40c1aef1abd09c47ce7ba0` | [`{ type: "hook/invoked" }`](#persistence-type-sha256-8a6e1ec9e8db346b0e02f027db73c07a94f067a26d40c1aef1abd09c47ce7ba0) |
 | `event:hook/result` | event | `e75916628f3f10c2d50658bd143052a46285fbf1a9a700ba54947614603d26b4` | [`{ type: "hook/result" }`](#persistence-type-sha256-e75916628f3f10c2d50658bd143052a46285fbf1a9a700ba54947614603d26b4) |
 | `event:image/offload` | event | `b222069eea2d768065161c1147b1f2c78c1b54328c84b3586ae5c8f91b8ed35e` | [`{ type: "image/offload" }`](#persistence-type-sha256-b222069eea2d768065161c1147b1f2c78c1b54328c84b3586ae5c8f91b8ed35e) |
-| `event:llm/model-fallback-exhausted` | event | `5ec3cfab7b8fa276770aa156e6da80d70d44859361ff734b8c38f1d5c9f544b3` | [`{ type: "llm/model-fallback-exhausted" }`](#persistence-type-sha256-5ec3cfab7b8fa276770aa156e6da80d70d44859361ff734b8c38f1d5c9f544b3) |
-| `event:llm/model-switched` | event | `b5d3ea31d045363f33aaaee00cfca7f1b193e162bfa293b5bc65468102af2f07` | [`{ type: "llm/model-switched" }`](#persistence-type-sha256-b5d3ea31d045363f33aaaee00cfca7f1b193e162bfa293b5bc65468102af2f07) |
+| `event:llm/model-fallback-exhausted` | event | `95fab5871979fa9a7842454f9f3af1b41f3dbb2c0edd6ec60919ea6a747bda61` | [`{ type: "llm/model-fallback-exhausted" }`](#persistence-type-sha256-95fab5871979fa9a7842454f9f3af1b41f3dbb2c0edd6ec60919ea6a747bda61) |
+| `event:llm/model-switched` | event | `4f17819da9a07a07d8db9940615e0b19a016563a578d59e6943d32067a1e3513` | [`{ type: "llm/model-switched" }`](#persistence-type-sha256-4f17819da9a07a07d8db9940615e0b19a016563a578d59e6943d32067a1e3513) |
 | `event:llm/retry` | event | `525254db03b1d1e6b74cf55aced52817568331ac1f96c0818728910b6692e336` | [`{ type: "llm/retry" }`](#persistence-type-sha256-525254db03b1d1e6b74cf55aced52817568331ac1f96c0818728910b6692e336) |
 | `event:llm/retry-started` | event | `48e5c9861f16ac07e78cb7b5ae9dabdf7bb85c58baed5a51b4ad275050ea58e3` | [`{ type: "llm/retry-started" }`](#persistence-type-sha256-48e5c9861f16ac07e78cb7b5ae9dabdf7bb85c58baed5a51b4ad275050ea58e3) |
 | `event:model/selection` | event | `35203ba7ad5ef6f97d556b85df20ae98f04f09c65748cecdf8eefdb8b6405ffc` | [`{ type: "model/selection" }`](#persistence-type-sha256-35203ba7ad5ef6f97d556b85df20ae98f04f09c65748cecdf8eefdb8b6405ffc) |
@@ -60,7 +60,7 @@
 | `event:session-log-deepseek/delivery-accepted` | event | `d63b8b8ffad9c02fd80c43a17df4f240c1fe8118ecca9de34f9d5871838ab5b9` | [`{ type: "session-log-deepseek/delivery-accepted" }`](#persistence-type-sha256-d63b8b8ffad9c02fd80c43a17df4f240c1fe8118ecca9de34f9d5871838ab5b9) |
 | `event:session/end-seed` | event | `5e6db6e24948d4a853c71cb9fabd252ad051ce93d4672c1266cf837c1c17b84e` | [`{ type: "session/end-seed" }`](#persistence-type-sha256-5e6db6e24948d4a853c71cb9fabd252ad051ce93d4672c1266cf837c1c17b84e) |
 | `event:session/title` | event | `1b912703e2d64f91c99c675b8f805b01076c8325b905c1218ad81ef0b24909d5` | [`{ type: "session/title" }`](#persistence-type-sha256-1b912703e2d64f91c99c675b8f805b01076c8325b905c1218ad81ef0b24909d5) |
-| `event:session/title-llm-request` | event | `b33545b3244861bcbf73b407d24b53402710f5acacab7ae939537e5504a68dc6` | [`{ type: "session/title-llm-request" }`](#persistence-type-sha256-b33545b3244861bcbf73b407d24b53402710f5acacab7ae939537e5504a68dc6) |
+| `event:session/title-llm-request` | event | `dc80b1518ee90315e624e6766f89b7f58bf37a64574b3ae41f2e4dc106f759a5` | [`{ type: "session/title-llm-request" }`](#persistence-type-sha256-dc80b1518ee90315e624e6766f89b7f58bf37a64574b3ae41f2e4dc106f759a5) |
 | `event:step/end` | event | `e0a787e6ec76c7c94fecbc501b489164ab0293db05bc947914077ad01e674f05` | [`{ type: "step/end" }`](#persistence-type-sha256-e0a787e6ec76c7c94fecbc501b489164ab0293db05bc947914077ad01e674f05) |
 | `event:step/start` | event | `4513e088d43e6c68425be30451b9f961cc264fe7318ca62681c41d4d78615986` | [`{ type: "step/start" }`](#persistence-type-sha256-4513e088d43e6c68425be30451b9f961cc264fe7318ca62681c41d4d78615986) |
 | `event:subagent/catalog` | event | `53750b9abf61efb7992b0aadc3e247ec927449c63266df28230fd1139f5590ac` | [`{ type: "subagent/catalog" }`](#persistence-type-sha256-53750b9abf61efb7992b0aadc3e247ec927449c63266df28230fd1139f5590ac) |
@@ -82,7 +82,7 @@
 | `event:tool/result` | event | `7c9f44e90a0058f4cc532ae20dad0c10afa6eba22e70a6c79fc79490bad64397` | [`{ type: "tool/result" }`](#persistence-type-sha256-7c9f44e90a0058f4cc532ae20dad0c10afa6eba22e70a6c79fc79490bad64397) |
 | `event:turn/end` | event | `0f8512903d94f57a4748fa1a2092e64342856796684e6b8343db685b192745ce` | [`{ type: "turn/end" }`](#persistence-type-sha256-0f8512903d94f57a4748fa1a2092e64342856796684e6b8343db685b192745ce) |
 | `event:turn/start` | event | `aa0957eca50aeb28bcd2e6930b95809926edacb550c8c340ba526ba6b861b3d8` | [`{ type: "turn/start" }`](#persistence-type-sha256-aa0957eca50aeb28bcd2e6930b95809926edacb550c8c340ba526ba6b861b3d8) |
-| `event:user/message` | event | `2ace3b8059b82b6d9837fed518ca97a99eb37c4482df7aad0e71c85489428ade` | [`{ type: "user/message" }`](#persistence-type-sha256-2ace3b8059b82b6d9837fed518ca97a99eb37c4482df7aad0e71c85489428ade) |
+| `event:user/message` | event | `73c4ebb1ed1fef687326f97f434e787b6c3547de6a3fd4b4e7225408a5c1f9cc` | [`{ type: "user/message" }`](#persistence-type-sha256-73c4ebb1ed1fef687326f97f434e787b6c3547de6a3fd4b4e7225408a5c1f9cc) |
 | `event:web/deepseek-search-llm-request` | event | `cf6e3aaf1e2de6480aa0157730a41b9a492108a55304100b0f7e112711dd4331` | [`{ type: "web/deepseek-search-llm-request" }`](#persistence-type-sha256-cf6e3aaf1e2de6480aa0157730a41b9a492108a55304100b0f7e112711dd4331) |
 | `event:working-directory/change` | event | `124aa62078ca3311353b39cc3bf6c75da281338be6bbf672f8b361d828cddca3` | [`{ type: "working-directory/change" }`](#persistence-type-sha256-124aa62078ca3311353b39cc3bf6c75da281338be6bbf672f8b361d828cddca3) |
 | `event:workspace/changes` | event | `e308ccf867a5398e316e0af8cb6ce238a8d33a63b9b384c8250a686786285f72` | [`{ type: "workspace/changes" }`](#persistence-type-sha256-e308ccf867a5398e316e0af8cb6ce238a8d33a63b9b384c8250a686786285f72) |
@@ -645,7 +645,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 'llm/model-fallback-exhausted': ModelFallbackExhaustedEventData
 ```
 
-来源：[`packages/llm/llm-model-fallback/src/types.ts:122`](../packages/llm/llm-model-fallback/src/types.ts)
+来源：[`packages/llm/llm-model-fallback/src/types.ts:154`](../packages/llm/llm-model-fallback/src/types.ts)
 
 <a id="llmmodel-switched--log-only"></a>
 
@@ -660,7 +660,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 'llm/model-switched': ModelSwitchedEventData
 ```
 
-来源：[`packages/llm/llm-model-fallback/src/types.ts:117`](../packages/llm/llm-model-fallback/src/types.ts)
+来源：[`packages/llm/llm-model-fallback/src/types.ts:149`](../packages/llm/llm-model-fallback/src/types.ts)
 
 <a id="llmretry--log-only"></a>
 
@@ -1705,6 +1705,14 @@ SHA-256: `9c7bba70285d8ec5a756bd25ac81724bfad7bd4fe5627bf73a281c4f041e0ede`
 
 `"context"`
 
+<a id="persistence-type-sha256-79d9de2e35c440c9594b590ae9c8845f5d7781bfe28428919b9461b279e2077a"></a>
+
+### `"context-window-too-small"`
+
+SHA-256: `79d9de2e35c440c9594b590ae9c8845f5d7781bfe28428919b9461b279e2077a`
+
+`"context-window-too-small"`
+
 <a id="persistence-type-sha256-e5d3828df1ec3e2a66879de0659e0f4866d9cfffc00825ee731a66f8a0c03d98"></a>
 
 ### `"continuable"`
@@ -2135,6 +2143,14 @@ SHA-256: `2765e9119edf5816ac1ab4c95c5ee32c90403f3742962eff11544f7752d59d2e`
 
 `"model"`
 
+<a id="persistence-type-sha256-4d7bf887ac34bfc1dff2cd64f2f43eae9f5d677bc6bd41ac306b7e5090662eb7"></a>
+
+### `"model-fallback-recovery"`
+
+SHA-256: `4d7bf887ac34bfc1dff2cd64f2f43eae9f5d677bc6bd41ac306b7e5090662eb7`
+
+`"model-fallback-recovery"`
+
 <a id="persistence-type-sha256-9ac52f0f84fec2eb9f71c2937e497d759db5ca0da4836d93a679d113684141f2"></a>
 
 ### `"model-selection"`
@@ -2190,6 +2206,14 @@ SHA-256: `3e2ece4967cfebe95f450a93f45523dff99d6749f6269f2f60f84dfecfcf3693`
 SHA-256: `62ecb62dc0fe1b5e70217f8a80c39256a40ee3a1917be14e5ca899d20c35f7fd`
 
 `"next-turn"`
+
+<a id="persistence-type-sha256-f146eb6983d7ae542dfafe62759adf802787a0aeac55228ccfa6dfd20b6b3039"></a>
+
+### `"no-eligible-candidate"`
+
+SHA-256: `f146eb6983d7ae542dfafe62759adf802787a0aeac55228ccfa6dfd20b6b3039`
+
+`"no-eligible-candidate"`
 
 <a id="persistence-type-sha256-3bc287e765d58dc3a22672a0495a6cfd561220dd38fbaecef80aa95b96caed79"></a>
 
@@ -2295,6 +2319,14 @@ SHA-256: `0341d4c3dfcd53253cdc1e789d9130d3cd848b6f8b0706bf92f313a68b39ff23`
 
 `"product-interaction"`
 
+<a id="persistence-type-sha256-f796251b8b11c17ff246463424fb474a3335afd705c49e63b1db880b4a15ec9b"></a>
+
+### `"prompt-format-mismatch"`
+
+SHA-256: `f796251b8b11c17ff246463424fb474a3335afd705c49e63b1db880b4a15ec9b`
+
+`"prompt-format-mismatch"`
+
 <a id="persistence-type-sha256-e31572180d6b28b73f073ad30ae19d5d82982d3daf984723984e23da1e7c459a"></a>
 
 ### `"provider"`
@@ -2366,6 +2398,14 @@ SHA-256: `688e853dc149f0d30b31765c12ec7e3be74169bdf1a4c6463a10b945d50cc1b8`
 SHA-256: `6f091fe32ab24407236090ca9d710bbaf59bb57466e9f3b8f1f6e4862bc863c6`
 
 `"reasoning-delta"`
+
+<a id="persistence-type-sha256-a1cb64783784c098fa442610f8b28cce556984483b7b786e509317b1fc8162e3"></a>
+
+### `"reasoning-effort-unsupported"`
+
+SHA-256: `a1cb64783784c098fa442610f8b28cce556984483b7b786e509317b1fc8162e3`
+
+`"reasoning-effort-unsupported"`
 
 <a id="persistence-type-sha256-383cf73ae4748e5beb281ae74857ba1ffb92ae01075b9fbf51af78b666007a8f"></a>
 
@@ -2655,6 +2695,14 @@ SHA-256: `511801b0a6470d98566e8385d3dffddb2b67f79fcf73ed6056f46c3cc0a245a7`
 
 `"success"`
 
+<a id="persistence-type-sha256-99ede2e74dc1aa1894c1ba533f0e22972328748a6a4c01496b1fb31aea9fe6fe"></a>
+
+### `"switch-limit-reached"`
+
+SHA-256: `99ede2e74dc1aa1894c1ba533f0e22972328748a6a4c01496b1fb31aea9fe6fe`
+
+`"switch-limit-reached"`
+
 <a id="persistence-type-sha256-8af841fc9b265ade3441caf9fe40dd24db24226befba48150e6d0eeccc1389c3"></a>
 
 ### `"system"`
@@ -2822,6 +2870,14 @@ SHA-256: `9b4fd974c124c83743efe030ba4e1250e087505f3f74588716a521fb8d453267`
 SHA-256: `6c1cccb433ddc153facb380c7dda956237ba5c31f8a532a69142dc277890cc9b`
 
 `"tool-calls"`
+
+<a id="persistence-type-sha256-cae1dc0ee17803575bf7c399935919c36e67f822318cbb19f3957e8fe72e6a6d"></a>
+
+### `"tool-format-mismatch"`
+
+SHA-256: `cae1dc0ee17803575bf7c399935919c36e67f822318cbb19f3957e8fe72e6a6d`
+
+`"tool-format-mismatch"`
 
 <a id="persistence-type-sha256-2f3f201c8846e19c20bb75c02280e3d4eb3c57509e4715f0c0a4d1d4f91a7a06"></a>
 
@@ -3242,7 +3298,7 @@ SHA-256: `84bbfdce7d2eab5b0c53e72ff7406db856c8bfd621b965b72fd86598ba493bf7`
 
 [`AssistantStreamRecord`](#persistence-type-sha256-33341aac09312300de5a178e6cc6f6544a4876f7f710cfea55eda473c8d329ef) 的数组。
 
-<a id="persistence-type-sha256-3461575be9f2df8f1c5e50bda8e14c9bbcb25c1e8ddbff4eadb5a7082b67904d"></a>
+<a id="persistence-type-sha256-3aa6134a26f6321a2d0dabf3595d57836d4d63fa9acd5208c98dd38b886a5dc3"></a>
 
 <a id="persistence-type-candidaterejectionreason"></a>
 
@@ -3250,16 +3306,20 @@ SHA-256: `84bbfdce7d2eab5b0c53e72ff7406db856c8bfd621b965b72fd86598ba493bf7`
 
 ### `CandidateRejectionReason`
 
-SHA-256: `3461575be9f2df8f1c5e50bda8e14c9bbcb25c1e8ddbff4eadb5a7082b67904d`
+SHA-256: `3aa6134a26f6321a2d0dabf3595d57836d4d63fa9acd5208c98dd38b886a5dc3`
 
-来源：[`packages/llm/llm-model-fallback/src/types.ts:60`](../packages/llm/llm-model-fallback/src/types.ts)
+来源：[`packages/llm/llm-model-fallback/src/types.ts:79`](../packages/llm/llm-model-fallback/src/types.ts)
 
 以下类型之一：
 
 - `"already-attempted"`
 - `"capability-mismatch"`
+- `"context-window-too-small"`
 - `"model-unknown"`
+- `"prompt-format-mismatch"`
 - `"provider-unregistered"`
+- `"reasoning-effort-unsupported"`
+- `"tool-format-mismatch"`
 
 <a id="persistence-type-sha256-ada310bf0bdb8fed51f3b56ea63f6ea6b18bbd587f04fccb63a14ab0b2a24e05"></a>
 
@@ -3414,7 +3474,7 @@ SHA-256: `2517ba143a271508d3ca35126d5aca8f7f1facf5aaddce4adf011832042fa2b9`
 | `body` | 必需 | [`{ max_tokens, messages, model, tools }`](#persistence-type-sha256-930a6567a10bb62ddd157bd8abdf4b182810c8c3b49d91309b3b009a5fed9731) |
 | `endpoint` | 必需 | `string` |
 
-<a id="persistence-type-sha256-af99c95d46bed802870f1ebefe0ea11f92a03cb37b8e0cbe3f94b7aaaf509b08"></a>
+<a id="persistence-type-sha256-5e72468d48e2808b63c62a72df5f8e67dd4e6b7ebb048d56e3f4c7e67056d119"></a>
 
 <a id="persistence-type-developermessage"></a>
 
@@ -3422,7 +3482,7 @@ SHA-256: `2517ba143a271508d3ca35126d5aca8f7f1facf5aaddce4adf011832042fa2b9`
 
 ### `DeveloperMessage`
 
-SHA-256: `af99c95d46bed802870f1ebefe0ea11f92a03cb37b8e0cbe3f94b7aaaf509b08`
+SHA-256: `5e72468d48e2808b63c62a72df5f8e67dd4e6b7ebb048d56e3f4c7e67056d119`
 
 来源：[`packages/llm/llm/src/message.ts:157`](../packages/llm/llm/src/message.ts)
 
@@ -3431,7 +3491,7 @@ SHA-256: `af99c95d46bed802870f1ebefe0ea11f92a03cb37b8e0cbe3f94b7aaaf509b08`
 | `content` | 必需 | [`ContentBlock[]`](#persistence-type-sha256-b52f215a6cd691058a3413c12f161fa3b563a2f4895adb3df6f744ec4b0a6ef1) |
 | `id` | 必需 | `string` |
 | `role` | 必需 | `"developer"` |
-| `source` | 必需 | [`MessageSource`](#persistence-type-sha256-1fa156c85450ca31063d0e0d2853028e6dac9687f2d3191fa811648210118154) |
+| `source` | 必需 | [`MessageSource`](#persistence-type-sha256-7888c5e2acac27b24861b2060ba7a6827ea4133c754ad6a5acf5f328e1a910ad) |
 
 消息源兼容策略：`source` — `session-source-attribution` v1; `session.developer-message.source`; `kind`; `preserve`.
 
@@ -3474,6 +3534,23 @@ SHA-256: `e6063d0451dc02026fd9b54ad3f77c7b1b6392ad3e872a7737ac84e13ca72344`
 | `id` | 必需 | `string` |
 | `operation` | 必需 | `"dispatch"` |
 | `version` | 必需 | `1` |
+
+<a id="persistence-type-sha256-7cfc106351c459f0549da0daf8f707df3fef12802996aefec7d190b269538f92"></a>
+
+<a id="persistence-type-fallbackexhaustioncause"></a>
+
+<a id="persistence-type-packagesllmllm-model-fallbacksrctypestsfallbackexhaustioncause"></a>
+
+### `FallbackExhaustionCause`
+
+SHA-256: `7cfc106351c459f0549da0daf8f707df3fef12802996aefec7d190b269538f92`
+
+来源：[`packages/llm/llm-model-fallback/src/types.ts:118`](../packages/llm/llm-model-fallback/src/types.ts)
+
+以下类型之一：
+
+- `"no-eligible-candidate"`
+- `"switch-limit-reached"`
 
 <a id="persistence-type-sha256-7d54a5a5e629e2e7783bfac72683bcc5e969e9f43426b9289826aaf294ff6344"></a>
 
@@ -4048,7 +4125,7 @@ SHA-256: `6f72ece8f317cd080c4f20a93f1bf709965f5b81ac4669528f5a023191cfcf20`
 | `step` | 必需 | `number` |
 | `turn` | 必需 | `number` |
 
-<a id="persistence-type-sha256-d901c4f5e856591c3217af983caa15bba568d580700f0958bab56b88004eced9"></a>
+<a id="persistence-type-sha256-61c1508625863730b69dea4439fa79d7abea64fac71fe4b7f31f0a169211551c"></a>
 
 <a id="persistence-type-message"></a>
 
@@ -4056,17 +4133,17 @@ SHA-256: `6f72ece8f317cd080c4f20a93f1bf709965f5b81ac4669528f5a023191cfcf20`
 
 ### `Message`
 
-SHA-256: `d901c4f5e856591c3217af983caa15bba568d580700f0958bab56b88004eced9`
+SHA-256: `61c1508625863730b69dea4439fa79d7abea64fac71fe4b7f31f0a169211551c`
 
 来源：[`packages/llm/llm/src/message.ts:196`](../packages/llm/llm/src/message.ts)
 
 以下类型之一：
 
 - [`ToolResultMessage`](#persistence-type-sha256-4b259f7f8f0a44ad5e90b70a73553ced1df27012d126921d397ff403b6c86731)
-- [`DeveloperMessage`](#persistence-type-sha256-af99c95d46bed802870f1ebefe0ea11f92a03cb37b8e0cbe3f94b7aaaf509b08)
-- [`UserMessage`](#persistence-type-sha256-89b2edff547be1ecfcd78ef18aeeb3cf507fcbf7d6093ec04fb111ef4c8e8a97)
-- [`SystemMessage`](#persistence-type-sha256-09f3f8dc417f278257202714132f98ba7b52957d7b558c4a04456603890eb363)
+- [`DeveloperMessage`](#persistence-type-sha256-5e72468d48e2808b63c62a72df5f8e67dd4e6b7ebb048d56e3f4c7e67056d119)
+- [`UserMessage`](#persistence-type-sha256-c3af578d05d6312c7d6a735ff68d88b6080e0103f5cd99ec76b4dd3dc6acfa6b)
 - [`AssistantMessage`](#persistence-type-sha256-fa87537f4a9c1e25602990a8bf686b383e9e00352ec8946e16ae24ba7c1625be)
+- [`SystemMessage`](#persistence-type-sha256-09f3f8dc417f278257202714132f98ba7b52957d7b558c4a04456603890eb363)
 
 <a id="persistence-type-sha256-7c6129b6961cf4b2a030f36c78d2b0a5be38617651a9b81322e054ee512bee06"></a>
 
@@ -4141,7 +4218,7 @@ SHA-256: `390eed1028aba02774f14408647acec10ec5516e97d4f15ecde2b9989d5a69f2`
 - `"negative"`
 - `"positive"`
 
-<a id="persistence-type-sha256-1fa156c85450ca31063d0e0d2853028e6dac9687f2d3191fa811648210118154"></a>
+<a id="persistence-type-sha256-7888c5e2acac27b24861b2060ba7a6827ea4133c754ad6a5acf5f328e1a910ad"></a>
 
 <a id="persistence-type-messagesource"></a>
 
@@ -4149,7 +4226,7 @@ SHA-256: `390eed1028aba02774f14408647acec10ec5516e97d4f15ecde2b9989d5a69f2`
 
 ### `MessageSource`
 
-SHA-256: `1fa156c85450ca31063d0e0d2853028e6dac9687f2d3191fa811648210118154`
+SHA-256: `7888c5e2acac27b24861b2060ba7a6827ea4133c754ad6a5acf5f328e1a910ad`
 
 来源：[`packages/llm/llm/src/message.ts:136`](../packages/llm/llm/src/message.ts)
 
@@ -4182,6 +4259,7 @@ SHA-256: `1fa156c85450ca31063d0e0d2853028e6dac9687f2d3191fa811648210118154`
 | `hooks-codex` | `"snapshot"` | `sections`: [`ContextSnapshotSection[]`](#persistence-type-sha256-c748fb42c80a120038a8c587af80ec39924803c401364db11c8974d5bf6d0262) | [`{ kind: "hooks-codex", form: "snapshot" }`](#persistence-type-sha256-88841202942c7683b3b7e5ea6a796047ec326b6701ac23e58cc236d85613b9fa) |
 | `hooks-codex` | 未声明 | 无 | [`{ kind: "hooks-codex" }`](#persistence-type-sha256-b4ec0af39fd52ed971990e42f04e5be3204882e555c409eb330f8238eec21569) |
 | `model` | 未声明 | `model`: `string`; `provider`: `string` | [`ModelMessageSource`](#persistence-type-sha256-719c51f67074f97034a6c94297fe1f4b5d3c8d392c57586dab732aa5398c7a91) |
+| `model-fallback-recovery` | `"notice"` | `summary`: `string` | [`{ kind: "model-fallback-recovery", form: "notice" }`](#persistence-type-sha256-0925a038eba7e1e6bbc9581ba3c93525bf3372faed7a537a6f885ef2c5fc7484) |
 | `model-selection` | `"catalog"` | 无 | [`{ kind: "model-selection", form: "catalog" }`](#persistence-type-sha256-99135d8a3937977955eaac5f8f04f930dcd1562f8450a54a51cde9b921dd59a6) |
 | `model-selection` | `"instructions"` | 无 | [`{ kind: "model-selection", form: "instructions" }`](#persistence-type-sha256-f6605d6c57933aeaaf10911b5fbd6c61e655baa181af7192d3240f49d255b90d) |
 | `model-selection` | `"notice"` | `summary`: `string` | [`{ kind: "model-selection", form: "notice" }`](#persistence-type-sha256-a3c6f1ea38e9a61d7a9706057ba65aabe02dfe6d9dd90d4736aa62325d874531) |
@@ -4267,13 +4345,13 @@ SHA-256: `1fa156c85450ca31063d0e0d2853028e6dac9687f2d3191fa811648210118154`
 | `webhook` | `"notice"` | `deliveryId`: `string`; `provider`: `string`; `ruleId`: `string`; `source`: `string`; `summary`: `string` | [`{ kind: "webhook", form: "notice" }`](#persistence-type-sha256-9edc162949abf93bd5ff049191b345454ba104f583937ce5580fb50f067d2b94) |
 | `working-directory` | 未声明 | 无 | [`{ kind: "working-directory" }`](#persistence-type-sha256-2235d957bf4b7c6cf959231d480f0ba1f3a6d72d82981493fb6c7c963021d3d5) |
 
-<a id="persistence-type-sha256-4be8fd28fefa5534675ea9aabd0a24efc2838b989bbc74da20a1efbd0daede8c"></a>
+<a id="persistence-type-sha256-392d4f855c0ad671f4cddac170f45ba9fc1b5ed4979ce53e880d271fbc39c70e"></a>
 
 ### `Message[]`
 
-SHA-256: `4be8fd28fefa5534675ea9aabd0a24efc2838b989bbc74da20a1efbd0daede8c`
+SHA-256: `392d4f855c0ad671f4cddac170f45ba9fc1b5ed4979ce53e880d271fbc39c70e`
 
-[`Message`](#persistence-type-sha256-d901c4f5e856591c3217af983caa15bba568d580700f0958bab56b88004eced9) 的数组。
+[`Message`](#persistence-type-sha256-61c1508625863730b69dea4439fa79d7abea64fac71fe4b7f31f0a169211551c) 的数组。
 
 <a id="persistence-type-sha256-5e863737b1e3ceb2e86f3870a12f3373bbd4cc7f16c23e460078e75549f5c3ce"></a>
 
@@ -4285,7 +4363,7 @@ SHA-256: `4be8fd28fefa5534675ea9aabd0a24efc2838b989bbc74da20a1efbd0daede8c`
 
 SHA-256: `5e863737b1e3ceb2e86f3870a12f3373bbd4cc7f16c23e460078e75549f5c3ce`
 
-来源：[`packages/llm/llm-model-fallback/src/types.ts:39`](../packages/llm/llm-model-fallback/src/types.ts)
+来源：[`packages/llm/llm-model-fallback/src/types.ts:51`](../packages/llm/llm-model-fallback/src/types.ts)
 
 以下类型之一：
 
@@ -4298,7 +4376,7 @@ SHA-256: `5e863737b1e3ceb2e86f3870a12f3373bbd4cc7f16c23e460078e75549f5c3ce`
 - `"unavailable"`
 - `"unknown"`
 
-<a id="persistence-type-sha256-8e4b42694c217baeadf2eaa5f56f0fb61f0b178622fe226c3107eb3ca9e793f4"></a>
+<a id="persistence-type-sha256-7018f0ad1a9762d3eefc2cb36a9dce0d9e47dee8c45c166ba56e716773d17c38"></a>
 
 <a id="persistence-type-modelfallbackexhaustedeventdata"></a>
 
@@ -4306,16 +4384,17 @@ SHA-256: `5e863737b1e3ceb2e86f3870a12f3373bbd4cc7f16c23e460078e75549f5c3ce`
 
 ### `ModelFallbackExhaustedEventData`
 
-SHA-256: `8e4b42694c217baeadf2eaa5f56f0fb61f0b178622fe226c3107eb3ca9e793f4`
+SHA-256: `7018f0ad1a9762d3eefc2cb36a9dce0d9e47dee8c45c166ba56e716773d17c38`
 
-来源：[`packages/llm/llm-model-fallback/src/types.ts:95`](../packages/llm/llm-model-fallback/src/types.ts)
+来源：[`packages/llm/llm-model-fallback/src/types.ts:125`](../packages/llm/llm-model-fallback/src/types.ts)
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
 | `attempted` | 必需 | [`RouteRef[]`](#persistence-type-sha256-ba77b58995e36f14bb13886b0493d0a1a63d5db10b1a6cd9f6ac65a72cf832ec) |
 | `category` | 必需 | [`ModelFailureCategory`](#persistence-type-sha256-5e863737b1e3ceb2e86f3870a12f3373bbd4cc7f16c23e460078e75549f5c3ce) |
+| `cause` | 必需 | [`FallbackExhaustionCause`](#persistence-type-sha256-7cfc106351c459f0549da0daf8f707df3fef12802996aefec7d190b269538f92) |
 | `failure` | 必需 | [`LlmFailure`](#persistence-type-sha256-5f2117d1856a5ab43c28371faa978ebfaa48f8c7d734ea3fc94842210df83dca) |
-| `rejected` | 必需 | [`RejectedCandidate[]`](#persistence-type-sha256-080f21b8d85eeacccf7169431dc533562d637eac390c7d71cd215f0003d42b39) |
+| `rejected` | 必需 | [`RejectedCandidate[]`](#persistence-type-sha256-4a682d80cc899322c8f4656d42b5193d7ff2ba32a37efa3fd82ad21e44a5b7d8) |
 | `step` | 必需 | `number` |
 | `turn` | 必需 | `number` |
 
@@ -4344,11 +4423,15 @@ SHA-256: `719c51f67074f97034a6c94297fe1f4b5d3c8d392c57586dab732aa5398c7a91`
 
 <a id="persistence-type-packagesapisession-controllersrctypestsmodelselection"></a>
 
+<a id="persistence-type-packagesllmllm-model-fallbacksrctypestsrouteselection"></a>
+
+<a id="persistence-type-routeselection"></a>
+
 ### `ModelSelection`
 
 SHA-256: `f09e5e7acf5ff5ccd193ff2eeec015fa2ff7c29d98bc465f8c3302058d47e29b`
 
-来源：[`packages/api/session-controller/src/types.ts:100`](../packages/api/session-controller/src/types.ts)
+来源：[`packages/api/session-controller/src/types.ts:100`](../packages/api/session-controller/src/types.ts) · [`packages/llm/llm-model-fallback/src/types.ts:37`](../packages/llm/llm-model-fallback/src/types.ts)
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
@@ -4356,7 +4439,7 @@ SHA-256: `f09e5e7acf5ff5ccd193ff2eeec015fa2ff7c29d98bc465f8c3302058d47e29b`
 | `provider` | 必需 | `string` |
 | `reasoningEffort` | 可选 | `string` |
 
-<a id="persistence-type-sha256-11ac22c7c44a678bb780a3cea9edfb069d43f8ed68e868975b6c40f32f13de16"></a>
+<a id="persistence-type-sha256-4dea40b79277e629033d2724a4de88e435f19e0582aa91c777a8e96cfa64565f"></a>
 
 <a id="persistence-type-modelswitchedeventdata"></a>
 
@@ -4364,19 +4447,19 @@ SHA-256: `f09e5e7acf5ff5ccd193ff2eeec015fa2ff7c29d98bc465f8c3302058d47e29b`
 
 ### `ModelSwitchedEventData`
 
-SHA-256: `11ac22c7c44a678bb780a3cea9edfb069d43f8ed68e868975b6c40f32f13de16`
+SHA-256: `4dea40b79277e629033d2724a4de88e435f19e0582aa91c777a8e96cfa64565f`
 
-来源：[`packages/llm/llm-model-fallback/src/types.ts:75`](../packages/llm/llm-model-fallback/src/types.ts)
+来源：[`packages/llm/llm-model-fallback/src/types.ts:98`](../packages/llm/llm-model-fallback/src/types.ts)
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
 | `category` | 必需 | [`ModelFailureCategory`](#persistence-type-sha256-5e863737b1e3ceb2e86f3870a12f3373bbd4cc7f16c23e460078e75549f5c3ce) |
 | `failure` | 必需 | [`LlmFailure`](#persistence-type-sha256-5f2117d1856a5ab43c28371faa978ebfaa48f8c7d734ea3fc94842210df83dca) |
 | `from` | 必需 | [`RouteRef`](#persistence-type-sha256-07e1a58c58b593f507b8e7f25723bb0aa42baae6e00f5ecfddf28cb1e64d3235) |
-| `rejected` | 必需 | [`RejectedCandidate[]`](#persistence-type-sha256-080f21b8d85eeacccf7169431dc533562d637eac390c7d71cd215f0003d42b39) |
+| `rejected` | 必需 | [`RejectedCandidate[]`](#persistence-type-sha256-4a682d80cc899322c8f4656d42b5193d7ff2ba32a37efa3fd82ad21e44a5b7d8) |
 | `step` | 必需 | `number` |
 | `switchId` | 必需 | `string` |
-| `to` | 必需 | [`RouteRef`](#persistence-type-sha256-07e1a58c58b593f507b8e7f25723bb0aa42baae6e00f5ecfddf28cb1e64d3235) |
+| `to` | 必需 | [`ModelSelection`](#persistence-type-sha256-f09e5e7acf5ff5ccd193ff2eeec015fa2ff7c29d98bc465f8c3302058d47e29b) |
 | `turn` | 必需 | `number` |
 
 <a id="persistence-type-sha256-8e8e91646a5cae3fc78f7532a0013ff2088ae47077642c2edd507a508209b8af"></a>
@@ -4519,7 +4602,7 @@ SHA-256: `814d9434e1ddf9078612b3b34322f26e9363b469213335007f7e9ba7fee9464e`
 | `text` | 必需 | `string` |
 | `type` | 必需 | `"reasoning"` |
 
-<a id="persistence-type-sha256-6556e2354bdda8227305e4be1ce43566d9fda6cd90ccfc694e8b898073119f78"></a>
+<a id="persistence-type-sha256-aeeb6af7e0cb1a212eaba465ac9fcc4bee2ee4108fed4ce8ff5124270cbfbf77"></a>
 
 <a id="persistence-type-packagesllmllm-model-fallbacksrctypestsrejectedcandidate"></a>
 
@@ -4527,22 +4610,22 @@ SHA-256: `814d9434e1ddf9078612b3b34322f26e9363b469213335007f7e9ba7fee9464e`
 
 ### `RejectedCandidate`
 
-SHA-256: `6556e2354bdda8227305e4be1ce43566d9fda6cd90ccfc694e8b898073119f78`
+SHA-256: `aeeb6af7e0cb1a212eaba465ac9fcc4bee2ee4108fed4ce8ff5124270cbfbf77`
 
-来源：[`packages/llm/llm-model-fallback/src/types.ts:67`](../packages/llm/llm-model-fallback/src/types.ts)
+来源：[`packages/llm/llm-model-fallback/src/types.ts:90`](../packages/llm/llm-model-fallback/src/types.ts)
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
-| `reason` | 必需 | [`CandidateRejectionReason`](#persistence-type-sha256-3461575be9f2df8f1c5e50bda8e14c9bbcb25c1e8ddbff4eadb5a7082b67904d) |
+| `reason` | 必需 | [`CandidateRejectionReason`](#persistence-type-sha256-3aa6134a26f6321a2d0dabf3595d57836d4d63fa9acd5208c98dd38b886a5dc3) |
 | `route` | 必需 | [`RouteRef`](#persistence-type-sha256-07e1a58c58b593f507b8e7f25723bb0aa42baae6e00f5ecfddf28cb1e64d3235) |
 
-<a id="persistence-type-sha256-080f21b8d85eeacccf7169431dc533562d637eac390c7d71cd215f0003d42b39"></a>
+<a id="persistence-type-sha256-4a682d80cc899322c8f4656d42b5193d7ff2ba32a37efa3fd82ad21e44a5b7d8"></a>
 
 ### `RejectedCandidate[]`
 
-SHA-256: `080f21b8d85eeacccf7169431dc533562d637eac390c7d71cd215f0003d42b39`
+SHA-256: `4a682d80cc899322c8f4656d42b5193d7ff2ba32a37efa3fd82ad21e44a5b7d8`
 
-[`RejectedCandidate`](#persistence-type-sha256-6556e2354bdda8227305e4be1ce43566d9fda6cd90ccfc694e8b898073119f78) 的数组。
+[`RejectedCandidate`](#persistence-type-sha256-aeeb6af7e0cb1a212eaba465ac9fcc4bee2ee4108fed4ce8ff5124270cbfbf77) 的数组。
 
 <a id="persistence-type-sha256-0acd94fe8794574c9ae72c7855ee16d29c546096d4af760d16d1225385764555"></a>
 
@@ -4766,7 +4849,7 @@ SHA-256: `b56f6a885da3dc394c69a3e3cc5c0cfc4da15601b63fda4989eee8f40efc5be4`
 | `source` | 必需 | [`SessionTitleSource`](#persistence-type-sha256-30d5a537b296685770b1241c4b4bbde19d5a31ff81aa23df73fab5e90b8fc65f) |
 | `title` | 必需 | `string` |
 
-<a id="persistence-type-sha256-045926475a46f625f84ae2be292b384817059f16927c69a9adab93717923ac19"></a>
+<a id="persistence-type-sha256-3cc27b1da1a523f15c5c217057fc44565536049259a6f6aab44d6c82ec86dcdb"></a>
 
 <a id="persistence-type-packagessessionsession-title-llmsrcindextssessiontitlellmrequesteventdata"></a>
 
@@ -4774,7 +4857,7 @@ SHA-256: `b56f6a885da3dc394c69a3e3cc5c0cfc4da15601b63fda4989eee8f40efc5be4`
 
 ### `SessionTitleLlmRequestEventData`
 
-SHA-256: `045926475a46f625f84ae2be292b384817059f16927c69a9adab93717923ac19`
+SHA-256: `3cc27b1da1a523f15c5c217057fc44565536049259a6f6aab44d6c82ec86dcdb`
 
 来源：[`packages/session/session-title-llm/src/index.ts:37`](../packages/session/session-title-llm/src/index.ts)
 
@@ -4782,7 +4865,7 @@ SHA-256: `045926475a46f625f84ae2be292b384817059f16927c69a9adab93717923ac19`
 |---|---|---|
 | `maxTokens` | 必需 | `number` |
 | `messageSeqs` | 必需 | [`number[]`](#persistence-type-sha256-5d03ba38734809bcbd2a55221bd938b3b3fc34b49bb686c6113e9e4931e3aa78) |
-| `messages` | 必需 | [`Message[]`](#persistence-type-sha256-4be8fd28fefa5534675ea9aabd0a24efc2838b989bbc74da20a1efbd0daede8c) |
+| `messages` | 必需 | [`Message[]`](#persistence-type-sha256-392d4f855c0ad671f4cddac170f45ba9fc1b5ed4979ce53e880d271fbc39c70e) |
 | `reasoningEffort` | 可选 | `string` |
 | `route` | 必需 | [`RouteRef`](#persistence-type-sha256-07e1a58c58b593f507b8e7f25723bb0aa42baae6e00f5ecfddf28cb1e64d3235) |
 | `system` | 必需 | `string` |
@@ -5409,7 +5492,7 @@ SHA-256: `f1687f982fa3d41ef29e159feed154ecd13af4dd209acaee16038f223f2e9402`
 | `interrupted` | 未声明 | 无 | [`{ kind: "interrupted" }`](#persistence-type-sha256-56b7c047694875a843ba020dfea3c8380d54ae4ff88ab349e72004dc21e07c23) |
 | `max-tokens` | 未声明 | 无 | [`{ kind: "max-tokens" }`](#persistence-type-sha256-ab7ec5f9eb2c6dfacca5da4c37cf7ba85d04172053ee6b1ebf1709ffcd99c1a7) |
 
-<a id="persistence-type-sha256-89b2edff547be1ecfcd78ef18aeeb3cf507fcbf7d6093ec04fb111ef4c8e8a97"></a>
+<a id="persistence-type-sha256-c3af578d05d6312c7d6a735ff68d88b6080e0103f5cd99ec76b4dd3dc6acfa6b"></a>
 
 <a id="persistence-type-packagesllmllmsrcmessagetsusermessage"></a>
 
@@ -5417,7 +5500,7 @@ SHA-256: `f1687f982fa3d41ef29e159feed154ecd13af4dd209acaee16038f223f2e9402`
 
 ### `UserMessage`
 
-SHA-256: `89b2edff547be1ecfcd78ef18aeeb3cf507fcbf7d6093ec04fb111ef4c8e8a97`
+SHA-256: `c3af578d05d6312c7d6a735ff68d88b6080e0103f5cd99ec76b4dd3dc6acfa6b`
 
 来源：[`packages/llm/llm/src/message.ts:162`](../packages/llm/llm/src/message.ts)
 
@@ -5426,19 +5509,19 @@ SHA-256: `89b2edff547be1ecfcd78ef18aeeb3cf507fcbf7d6093ec04fb111ef4c8e8a97`
 | `content` | 必需 | [`ContentBlock[]`](#persistence-type-sha256-b52f215a6cd691058a3413c12f161fa3b563a2f4895adb3df6f744ec4b0a6ef1) |
 | `id` | 必需 | `string` |
 | `role` | 必需 | `"user"` |
-| `source` | 必需 | [`MessageSource`](#persistence-type-sha256-1fa156c85450ca31063d0e0d2853028e6dac9687f2d3191fa811648210118154) |
+| `source` | 必需 | [`MessageSource`](#persistence-type-sha256-7888c5e2acac27b24861b2060ba7a6827ea4133c754ad6a5acf5f328e1a910ad) |
 
 消息源兼容策略：`source` — `session-source-attribution` v1; `session.user-message.source`; `kind`; `preserve`.
 
 仅表示归属的新增 kind：`tmux-context`, `user-question-reply`, `working-directory`.
 
-<a id="persistence-type-sha256-2fef90def36aa758ca096c5f6ad0e00dbb2101943e19ca54b05618801974894a"></a>
+<a id="persistence-type-sha256-675d1d9a80b2a15f4fb73a382276f31335c12c72960ccd85804d2f2774beb6a6"></a>
 
 ### `UserMessage[]`
 
-SHA-256: `2fef90def36aa758ca096c5f6ad0e00dbb2101943e19ca54b05618801974894a`
+SHA-256: `675d1d9a80b2a15f4fb73a382276f31335c12c72960ccd85804d2f2774beb6a6`
 
-[`UserMessage`](#persistence-type-sha256-89b2edff547be1ecfcd78ef18aeeb3cf507fcbf7d6093ec04fb111ef4c8e8a97) 的数组。
+[`UserMessage`](#persistence-type-sha256-c3af578d05d6312c7d6a735ff68d88b6080e0103f5cd99ec76b4dd3dc6acfa6b) 的数组。
 
 <a id="persistence-type-sha256-c2deb7c9183735d4e0fffddf5c623f4e34daa1c8e96b111982e957dfcbbcf896"></a>
 
@@ -6311,18 +6394,18 @@ SHA-256: `ad0c38a0adb82a94c925456df41586d9b5f9202fca18593eae2213d4445b4585`
 | `reason` | 必需 | [`RequestHeaderReason`](#persistence-type-sha256-530da6c0267813bb4511af72883cc518834e624e3b3220a7062955fd57a788a6) |
 | `startsSeries` | 可选 | `true` |
 
-<a id="persistence-type-sha256-5b55817a403569fbb2d379496df2e3f3f71107f6c577a218028ce187c60b61e6"></a>
+<a id="persistence-type-sha256-a8d374303096c974792a96cce526ba97c56a5ad54cf1b0378d23f396b7d088c2"></a>
 
 ### `{ headerSeq?, message, step, turn }`
 
-SHA-256: `5b55817a403569fbb2d379496df2e3f3f71107f6c577a218028ce187c60b61e6`
+SHA-256: `a8d374303096c974792a96cce526ba97c56a5ad54cf1b0378d23f396b7d088c2`
 
 来源：[`packages/core/session/src/types.ts:311`](../packages/core/session/src/types.ts)
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
 | `headerSeq` | 可选 | `number` |
-| `message` | 必需 | [`DeveloperMessage`](#persistence-type-sha256-af99c95d46bed802870f1ebefe0ea11f92a03cb37b8e0cbe3f94b7aaaf509b08) |
+| `message` | 必需 | [`DeveloperMessage`](#persistence-type-sha256-5e72468d48e2808b63c62a72df5f8e67dd4e6b7ebb048d56e3f4c7e67056d119) |
 | `step` | 必需 | `number` |
 | `turn` | 必需 | `number` |
 
@@ -6406,17 +6489,17 @@ SHA-256: `17d1afb770d9941936130996da00dc86782cfef731d8d6526162c301256a4ac3`
 |---|---|---|
 | `inherited` | 可选 | `true` |
 
-<a id="persistence-type-sha256-83a665476a9ee9af05cb1fdded12dd647d1b97b491200d7f12ef1af7cdac4428"></a>
+<a id="persistence-type-sha256-d927a33ae358b5349799ca7d685e722314f86c978d9348eb54c5b0bb1000a351"></a>
 
 ### `{ inserted, outcome?, removedCount?, start, … }`
 
-SHA-256: `83a665476a9ee9af05cb1fdded12dd647d1b97b491200d7f12ef1af7cdac4428`
+SHA-256: `d927a33ae358b5349799ca7d685e722314f86c978d9348eb54c5b0bb1000a351`
 
 来源：[`packages/core/agent/src/types.ts:96`](../packages/core/agent/src/types.ts)
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
-| `inserted` | 必需 | [`UserMessage[]`](#persistence-type-sha256-2fef90def36aa758ca096c5f6ad0e00dbb2101943e19ca54b05618801974894a) |
+| `inserted` | 必需 | [`UserMessage[]`](#persistence-type-sha256-675d1d9a80b2a15f4fb73a382276f31335c12c72960ccd85804d2f2774beb6a6) |
 | `outcome` | 可选 | `"canceled"` |
 | `removedCount` | 可选 | `number` |
 | `start` | 必需 | `number` |
@@ -6806,6 +6889,18 @@ SHA-256: `ab7ec5f9eb2c6dfacca5da4c37cf7ba85d04172053ee6b1ebf1709ffcd99c1a7`
 | 属性 | 存在性 | 类型 |
 |---|---|---|
 | `kind` | 必需 | `"max-tokens"` |
+
+<a id="persistence-type-sha256-0925a038eba7e1e6bbc9581ba3c93525bf3372faed7a537a6f885ef2c5fc7484"></a>
+
+### `{ kind: "model-fallback-recovery", form: "notice" }`
+
+SHA-256: `0925a038eba7e1e6bbc9581ba3c93525bf3372faed7a537a6f885ef2c5fc7484`
+
+| 属性 | 存在性 | 类型 |
+|---|---|---|
+| `form` | 必需 | `"notice"` |
+| `kind` | 必需 | `"model-fallback-recovery"` |
+| `summary` | 必需 | `string` |
 
 <a id="persistence-type-sha256-f7283223aacdc39b0adca728c8cbd4c090a20006a6fecec74421c30e943b489c"></a>
 
@@ -7976,17 +8071,17 @@ SHA-256: `a10c17474eaf2ddab7095a099e0fe3d046fc18e56c3e344fc8894c05ff9ef97b`
 | `time` | 必需 | `number` |
 | `type` | 必需 | `"agent-preset/selected"` |
 
-<a id="persistence-type-sha256-9a36727716d0e73f681f3b725e7f28f89417c68174c8af0ff2b1ef52b08326a0"></a>
+<a id="persistence-type-sha256-c78ff87eb84aff1837d01c1afe9ad49cd57686ae77f93f1bd9fe4dfcc65ec6db"></a>
 
 <a id="persistence-type-eventagentinboxspliced"></a>
 
 ### `{ type: "agent/inbox/spliced" }`
 
-SHA-256: `9a36727716d0e73f681f3b725e7f28f89417c68174c8af0ff2b1ef52b08326a0`
+SHA-256: `c78ff87eb84aff1837d01c1afe9ad49cd57686ae77f93f1bd9fe4dfcc65ec6db`
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
-| `data` | 必需 | [`{ inserted, outcome?, removedCount?, start, … }`](#persistence-type-sha256-83a665476a9ee9af05cb1fdded12dd647d1b97b491200d7f12ef1af7cdac4428) |
+| `data` | 必需 | [`{ inserted, outcome?, removedCount?, start, … }`](#persistence-type-sha256-d927a33ae358b5349799ca7d685e722314f86c978d9348eb54c5b0bb1000a351) |
 | `ignorable` | 可选 | `true` |
 | `seq` | 必需 | `number` |
 | `time` | 必需 | `number` |
@@ -8227,17 +8322,17 @@ SHA-256: `13d3d180f977bf78081d487ffa0ecb75857349bcab29a5a3fb48189fca2a6176`
 | `time` | 必需 | `number` |
 | `type` | 必需 | `"deliverables/presented"` |
 
-<a id="persistence-type-sha256-ba5b10ea77d68f4a29439a9bd2a14f6a560acf55731749d57237757cc72fbc06"></a>
+<a id="persistence-type-sha256-5b1d3ad6fa8cd4ce08d2da5b48bab3f694dda8467107736d370a75e775974f3f"></a>
 
 <a id="persistence-type-eventdevelopermessage"></a>
 
 ### `{ type: "developer/message" }`
 
-SHA-256: `ba5b10ea77d68f4a29439a9bd2a14f6a560acf55731749d57237757cc72fbc06`
+SHA-256: `5b1d3ad6fa8cd4ce08d2da5b48bab3f694dda8467107736d370a75e775974f3f`
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
-| `data` | 必需 | [`{ headerSeq?, message, step, turn }`](#persistence-type-sha256-5b55817a403569fbb2d379496df2e3f3f71107f6c577a218028ce187c60b61e6) |
+| `data` | 必需 | [`{ headerSeq?, message, step, turn }`](#persistence-type-sha256-a8d374303096c974792a96cce526ba97c56a5ad54cf1b0378d23f396b7d088c2) |
 | `ignorable` | 可选 | `true` |
 | `seq` | 必需 | `number` |
 | `sourceEventSeqs` | 可选 | [`number[]`](#persistence-type-sha256-5d03ba38734809bcbd2a55221bd938b3b3fc34b49bb686c6113e9e4931e3aa78) |
@@ -8371,33 +8466,33 @@ SHA-256: `b222069eea2d768065161c1147b1f2c78c1b54328c84b3586ae5c8f91b8ed35e`
 | `time` | 必需 | `number` |
 | `type` | 必需 | `"image/offload"` |
 
-<a id="persistence-type-sha256-5ec3cfab7b8fa276770aa156e6da80d70d44859361ff734b8c38f1d5c9f544b3"></a>
+<a id="persistence-type-sha256-95fab5871979fa9a7842454f9f3af1b41f3dbb2c0edd6ec60919ea6a747bda61"></a>
 
 <a id="persistence-type-eventllmmodel-fallback-exhausted"></a>
 
 ### `{ type: "llm/model-fallback-exhausted" }`
 
-SHA-256: `5ec3cfab7b8fa276770aa156e6da80d70d44859361ff734b8c38f1d5c9f544b3`
+SHA-256: `95fab5871979fa9a7842454f9f3af1b41f3dbb2c0edd6ec60919ea6a747bda61`
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
-| `data` | 必需 | [`ModelFallbackExhaustedEventData`](#persistence-type-sha256-8e4b42694c217baeadf2eaa5f56f0fb61f0b178622fe226c3107eb3ca9e793f4) |
+| `data` | 必需 | [`ModelFallbackExhaustedEventData`](#persistence-type-sha256-7018f0ad1a9762d3eefc2cb36a9dce0d9e47dee8c45c166ba56e716773d17c38) |
 | `ignorable` | 可选 | `true` |
 | `seq` | 必需 | `number` |
 | `time` | 必需 | `number` |
 | `type` | 必需 | `"llm/model-fallback-exhausted"` |
 
-<a id="persistence-type-sha256-b5d3ea31d045363f33aaaee00cfca7f1b193e162bfa293b5bc65468102af2f07"></a>
+<a id="persistence-type-sha256-4f17819da9a07a07d8db9940615e0b19a016563a578d59e6943d32067a1e3513"></a>
 
 <a id="persistence-type-eventllmmodel-switched"></a>
 
 ### `{ type: "llm/model-switched" }`
 
-SHA-256: `b5d3ea31d045363f33aaaee00cfca7f1b193e162bfa293b5bc65468102af2f07`
+SHA-256: `4f17819da9a07a07d8db9940615e0b19a016563a578d59e6943d32067a1e3513`
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
-| `data` | 必需 | [`ModelSwitchedEventData`](#persistence-type-sha256-11ac22c7c44a678bb780a3cea9edfb069d43f8ed68e868975b6c40f32f13de16) |
+| `data` | 必需 | [`ModelSwitchedEventData`](#persistence-type-sha256-4dea40b79277e629033d2724a4de88e435f19e0582aa91c777a8e96cfa64565f) |
 | `ignorable` | 可选 | `true` |
 | `seq` | 必需 | `number` |
 | `time` | 必需 | `number` |
@@ -8625,17 +8720,17 @@ SHA-256: `1b912703e2d64f91c99c675b8f805b01076c8325b905c1218ad81ef0b24909d5`
 | `time` | 必需 | `number` |
 | `type` | 必需 | `"session/title"` |
 
-<a id="persistence-type-sha256-b33545b3244861bcbf73b407d24b53402710f5acacab7ae939537e5504a68dc6"></a>
+<a id="persistence-type-sha256-dc80b1518ee90315e624e6766f89b7f58bf37a64574b3ae41f2e4dc106f759a5"></a>
 
 <a id="persistence-type-eventsessiontitle-llm-request"></a>
 
 ### `{ type: "session/title-llm-request" }`
 
-SHA-256: `b33545b3244861bcbf73b407d24b53402710f5acacab7ae939537e5504a68dc6`
+SHA-256: `dc80b1518ee90315e624e6766f89b7f58bf37a64574b3ae41f2e4dc106f759a5`
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
-| `data` | 必需 | [`SessionTitleLlmRequestEventData`](#persistence-type-sha256-045926475a46f625f84ae2be292b384817059f16927c69a9adab93717923ac19) |
+| `data` | 必需 | [`SessionTitleLlmRequestEventData`](#persistence-type-sha256-3cc27b1da1a523f15c5c217057fc44565536049259a6f6aab44d6c82ec86dcdb) |
 | `ignorable` | 可选 | `true` |
 | `seq` | 必需 | `number` |
 | `time` | 必需 | `number` |
@@ -9058,17 +9153,17 @@ SHA-256: `f1a96afe7503ac1817de769cd0ba13d9b80111c7034c50106b3344ecc14cc515`
 | `type` | 必需 | `"usage"` |
 | `usage` | 必需 | [`TokenUsage`](#persistence-type-sha256-fec5442b9ee4122e10514d81d5a43648003fe8bfb7ee2ba50c0cdbdd383ed394) |
 
-<a id="persistence-type-sha256-2ace3b8059b82b6d9837fed518ca97a99eb37c4482df7aad0e71c85489428ade"></a>
+<a id="persistence-type-sha256-73c4ebb1ed1fef687326f97f434e787b6c3547de6a3fd4b4e7225408a5c1f9cc"></a>
 
 <a id="persistence-type-eventusermessage"></a>
 
 ### `{ type: "user/message" }`
 
-SHA-256: `2ace3b8059b82b6d9837fed518ca97a99eb37c4482df7aad0e71c85489428ade`
+SHA-256: `73c4ebb1ed1fef687326f97f434e787b6c3547de6a3fd4b4e7225408a5c1f9cc`
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
-| `data` | 必需 | [`UserMessage`](#persistence-type-sha256-89b2edff547be1ecfcd78ef18aeeb3cf507fcbf7d6093ec04fb111ef4c8e8a97) |
+| `data` | 必需 | [`UserMessage`](#persistence-type-sha256-c3af578d05d6312c7d6a735ff68d88b6080e0103f5cd99ec76b4dd3dc6acfa6b) |
 | `ignorable` | 可选 | `true` |
 | `seq` | 必需 | `number` |
 | `sourceEventSeqs` | 可选 | [`number[]`](#persistence-type-sha256-5d03ba38734809bcbd2a55221bd938b3b3fc34b49bb686c6113e9e4931e3aa78) |
