@@ -188,7 +188,11 @@ function applyModelFallbackState(state: ModelFallbackState, event: SessionEvent)
 /** Projection folding {@link ModelFallbackState} from one Session log. */
 export const modelFallbackProjection = {
   key: 'llmModelFallback',
-  stateVersion: 1,
+  // The folded shape gained the replaced-route endpoint, the pause, the
+  // interrupted turn, the recovery attempts, and the observed input size, so a
+  // checkpoint written by an earlier build must be discarded rather than
+  // restored into a state the fold no longer produces.
+  stateVersion: 2,
   stateSchema: modelFallbackStateSchema,
   init: () => INITIAL_STATE,
   apply: applyModelFallbackState,
