@@ -49,17 +49,32 @@ const CONFIGURATION_CODES: ReadonlySet<string> = new Set([
 
 /**
  * Classify one failed model request for recovery routing.
+ *
+ * Precedence is what makes the answer trustworthy: a provider-normalized code
+ * speaks first, then the HTTP status the provider returned, and only an
+ * otherwise unclassified failure is read for quota wording. A message that
+ * happens to mention a balance therefore cannot turn an explicit `AUTH` or
+ * `BILLING` code, or a 401/402 response, into an exhausted quota — the two
+ * outcomes differ: an exhausted quota may be recovered on another route, while
+ * a rejected credential on this account may not.
  * @param failure - serializable facts normalized at the adapter boundary.
  * @returns the category that decides retry, switch, or terminal handling.
  */
 export function classifyModelFailure(failure: LlmFailure): ModelFailureCategory {
   const { code, status } = failure
   if (code === CONTEXT_WINDOW_EXCEEDED_CODE) return 'context'
-  if (QUOTA_CODES.has(code) || isQuotaExceededError(failure.message)) return 'quota'
-  if (AUTH_CODES.has(code) || status === 401 || status === 403) return 'auth'
-  if (BILLING_CODES.has(code) || status === 402) return 'billing'
-  if (TRANSIENT_CODES.has(code) || status === 408 || status === 429) return 'transient'
-  if (UNAVAILABLE_CODES.has(code) || (status !== undefined && status >= 500)) return 'unavailable'
+  if (AUTH_CODES.has(code)) return 'auth'
+  if (BILLING_CODES.has(code)) return 'billing'
+  if (QUOTA_CODES.has(code)) return 'quota'
+  if (TRANSIENT_CODES.has(code)) return 'transient'
+  if (UNAVAILABLE_CODES.has(code)) return 'unavailable'
   if (CONFIGURATION_CODES.has(code)) return 'configuration'
+  if (status === 401 || status === 403) return 'auth'
+  if (status === 402) return 'billing'
+  if (status === 408 || status === 429) return 'transient'
+  if (status !== undefined && status >= 500) return 'unavailable'
+  // Last resort: no organized signal. Providers report an exhausted balance
+  // with no distinct code or status, so the wording is the only evidence left.
+  if (isQuotaExceededError(failure.message)) return 'quota'
   return 'unknown'
 }

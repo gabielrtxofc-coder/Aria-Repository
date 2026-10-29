@@ -8,7 +8,11 @@
  *
  * The override never outlives the route it replaced: it applies only while the
  * entry point's own selection still names {@link ModelRouteOverride.replaces},
- * and its owner clears it when the Session records another route.
+ * and its owner clears it when the Session records another route. A recovery
+ * that walks a chain of alternatives keeps `replaces` at the entry point's own
+ * route and reports the route it replaced most recently as `previous`, because
+ * a retried request is seeded from the last logged header rather than from the
+ * entry point.
  *
  * @module @deepseek-ai/dsh-agent/model-routing
  */
@@ -28,8 +32,17 @@ declare module '@deepseek-ai/cordis' {
 export interface ModelRouteOverride {
   /** Route the current step's requests use. */
   readonly route: ModelSelection
-  /** Route this override replaced; the override yields once another route is selected. */
+  /** Entry-point route this override replaced; the override yields once another route is selected. */
   readonly replaces: ModelSelection
+  /**
+   * Route the current replacement replaced most recently.
+   *
+   * Absent when the replacement stands in for the entry point's route directly.
+   * A retried request carries the previous replacement in its header, so this
+   * field is what keeps a second switch from being read as another actor's
+   * route choice.
+   */
+  readonly previous?: ModelSelection | undefined
 }
 
 /**
@@ -63,12 +76,13 @@ export class ModelRouting extends Service {
   /**
    * Record or replace one Agent's recovery override.
    * @param agentCtx - the Agent's scoped context.
-   * @param override - replacement route and the route it replaces, both copied.
+   * @param override - replacement route, the route it replaces, and the route it replaced most recently, all copied.
    */
   setOverride(agentCtx: Context, override: ModelRouteOverride): void {
     this.overrides.set(agentCtx, {
       route: { ...override.route },
       replaces: { ...override.replaces },
+      ...override.previous === undefined ? {} : { previous: { ...override.previous } },
     })
   }
 

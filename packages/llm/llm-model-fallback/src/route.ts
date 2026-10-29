@@ -32,6 +32,10 @@ export interface ResolvedModelFallbackPolicy {
   readonly switchOn: readonly ModelFailureCategory[]
   /** Switch allowance for one turn. */
   readonly maxSwitchesPerTurn: number
+  /** Whether a resumed Session continues an interrupted or paused task by itself. */
+  readonly resumeInterruptedTurns: boolean
+  /** Automatic continuation turns allowed after the last human message. */
+  readonly maxRecoveryAttempts: number
 }
 
 /**
@@ -58,7 +62,11 @@ export function routeKey(route: RouteRef): string {
  * @param route - configured candidate route.
  * @returns provider, model, and the optional configured reasoning effort.
  */
-export function selectionOf(route: ModelFallbackCandidateConfig): ModelSelection {
+export function selectionOf(route: {
+  readonly provider: string
+  readonly model: string
+  readonly reasoningEffort?: string | undefined
+}): ModelSelection {
   return {
     provider: route.provider,
     model: route.model,

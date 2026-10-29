@@ -1742,7 +1742,7 @@ export interface Config extends ProtocolConfig {
 ## `@deepseek-ai/dsh-llm-model-fallback`
 
 - `inject`: `agents` · `sessionProjections` · `llm`
-- `source`: [`packages/llm/llm-model-fallback/src/index.ts:45`](../packages/llm/llm-model-fallback/src/index.ts)
+- `source`: [`packages/llm/llm-model-fallback/src/index.ts:51`](../packages/llm/llm-model-fallback/src/index.ts)
 
 ```ts config-catalog
 /** Plugin configuration for model-route fallback. */
@@ -1757,6 +1757,14 @@ export interface Config {
   switchOn?: ModelFailureCategory[]
   /** Switches allowed in one turn; defaults to the chain length. */
   maxSwitchesPerTurn?: number
+  /**
+   * Continue a task whose turn was interrupted or left paused by an exhausted
+   * chain when the Session is resumed, without waiting for a new user message.
+   * Defaults to off: a resumed Session is normally the user's turn to speak.
+   */
+  resumeInterruptedTurns?: boolean
+  /** Automatic continuation turns allowed after the last human message; defaults to 1. */
+  maxRecoveryAttempts?: number
 }
 
 /** One configured replacement route. */

@@ -126,6 +126,7 @@ describe('resolveCandidates()', () => {
       failed,
       attempted: [],
       requiredModalities: ['image'],
+      requiredShape: { systemPromptInHistory: false, toolUpdates: false },
     })
     expect(resolution.eligible).toEqual([{ provider: 'secondary', model: 'model-b' }])
     expect(resolution.rejected).toEqual([
@@ -143,6 +144,7 @@ describe('resolveCandidates()', () => {
       failed,
       attempted: [{ provider: 'secondary', model: 'model-b' }],
       requiredModalities: [],
+      requiredShape: { systemPromptInHistory: false, toolUpdates: false },
     })
     expect(resolution.eligible).toEqual([])
     expect(resolution.rejected[0]?.reason).toBe('already-attempted')
@@ -178,6 +180,8 @@ describe('resolveModelFallbackPolicy() diagnostics', () => {
       chain: [],
       switchOn: ['transient', 'unavailable', 'quota', 'billing'],
       maxSwitchesPerTurn: 0,
+      resumeInterruptedTurns: false,
+      maxRecoveryAttempts: 0,
     })
   })
 

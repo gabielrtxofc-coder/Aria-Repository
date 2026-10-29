@@ -13,32 +13,38 @@
 import { randomUUID } from 'node:crypto'
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import { z as zod } from 'zod'
-import type { Agent, ModelSelection } from '@deepseek-ai/dsh-agent'
+import type { Agent, ModelRouteOverride } from '@deepseek-ai/dsh-agent'
 import type { LlmCallConfig } from '@deepseek-ai/dsh-llm'
-import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
+import type { Session } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-session-projection'
-import type { ProjectionDefinition } from '@deepseek-ai/dsh-session-projection'
 import { classifyModelFailure } from './classification.ts'
-import { requiredInputModalities, resolveCandidates } from './selection.ts'
+import { continuationFor } from './continuation.ts'
+import { requiredInputModalities, requiredRequestShape, resolveCandidates } from './selection.ts'
 import { routeKey, sameRoute, selectionOf } from './route.ts'
 import type { ModelFallbackCandidateConfig, ResolvedModelFallbackPolicy } from './route.ts'
+import { INITIAL_STATE, modelFallbackProjection } from './state.ts'
+import type { ActiveFallbackRoute, ModelFallbackState } from './state.ts'
 import { MODEL_FAILURE_CATEGORIES, ModelSwitchId } from './types.ts'
-import type { ModelFailureCategory, RouteRef } from './types.ts'
+import type { FallbackExhaustionCause, ModelFailureCategory, RejectedCandidate, RouteRef } from './types.ts'
 
 export type { ModelFallbackCandidateConfig, ResolvedModelFallbackPolicy } from './route.ts'
 export { routeKey, sameRoute, selectionOf } from './route.ts'
 export { classifyModelFailure } from './classification.ts'
-export { requiredInputModalities, resolveCandidates } from './selection.ts'
-export type { CandidateResolution, CandidateResolutionRequest } from './selection.ts'
+export { requiredInputModalities, requiredRequestShape, resolveCandidates } from './selection.ts'
+export type { CandidateResolution, CandidateResolutionRequest, RequestShape } from './selection.ts'
+export { CONTINUATION_TEXT, continuationFor, RECOVERY_SOURCE_KIND } from './continuation.ts'
+export { INITIAL_STATE, modelFallbackProjection } from './state.ts'
+export type { ActiveFallbackRoute, ModelFallbackState } from './state.ts'
 export { MODEL_FAILURE_CATEGORIES, ModelSwitchId }
 export type {
   CandidateRejectionReason,
+  FallbackExhaustionCause,
   ModelFailureCategory,
   ModelFallbackExhaustedEventData,
   ModelSwitchedEventData,
   RejectedCandidate,
   RouteRef,
+  RouteSelection,
 } from './types.ts'
 
 /** Plugin configuration for model-route fallback. */
@@ -53,6 +59,14 @@ export interface Config {
   switchOn?: ModelFailureCategory[]
   /** Switches allowed in one turn; defaults to the chain length. */
   maxSwitchesPerTurn?: number
+  /**
+   * Continue a task whose turn was interrupted or left paused by an exhausted
+   * chain when the Session is resumed, without waiting for a new user message.
+   * Defaults to off: a resumed Session is normally the user's turn to speak.
+   */
+  resumeInterruptedTurns?: boolean
+  /** Automatic continuation turns allowed after the last human message; defaults to 1. */
+  maxRecoveryAttempts?: number
 }
 
 const DEFAULT_SWITCH_ON: readonly ModelFailureCategory[] = ['transient', 'unavailable', 'quota', 'billing']
@@ -66,10 +80,18 @@ export const Config: z<Config> = z.object({
   })).required(),
   switchOn: z.array(z.union(MODEL_FAILURE_CATEGORIES.map(category => z.const(category)))).default([...DEFAULT_SWITCH_ON]),
   maxSwitchesPerTurn: z.number().step(1).min(0),
+  resumeInterruptedTurns: z.boolean().default(false),
+  maxRecoveryAttempts: z.number().step(1).min(0),
 })
 
 const CANDIDATE_KEYS: ReadonlySet<string> = new Set(['provider', 'model', 'reasoningEffort'])
-const CONFIG_KEYS: ReadonlySet<string> = new Set(['chain', 'switchOn', 'maxSwitchesPerTurn'])
+const CONFIG_KEYS: ReadonlySet<string> = new Set([
+  'chain',
+  'switchOn',
+  'maxSwitchesPerTurn',
+  'resumeInterruptedTurns',
+  'maxRecoveryAttempts',
+])
 
 function isCategory(value: string): value is ModelFailureCategory {
   return (MODEL_FAILURE_CATEGORIES as readonly string[]).includes(value)
@@ -118,6 +140,8 @@ export function resolveModelFallbackPolicy(
       chain: Object.freeze([]),
       switchOn: Object.freeze([...DEFAULT_SWITCH_ON]),
       maxSwitchesPerTurn: 0,
+      resumeInterruptedTurns: false,
+      maxRecoveryAttempts: 0,
     })
   }
   validateKeys(config, CONFIG_KEYS, path)
@@ -149,10 +173,21 @@ export function resolveModelFallbackPolicy(
     throw new Error(`${path}.maxSwitchesPerTurn must be a non-negative safe integer`)
   }
 
+  const resumeInterruptedTurns = config.resumeInterruptedTurns ?? false
+  if (typeof resumeInterruptedTurns !== 'boolean') {
+    throw new Error(`${path}.resumeInterruptedTurns must be a boolean`)
+  }
+  const maxRecoveryAttempts = config.maxRecoveryAttempts ?? 1
+  if (!Number.isSafeInteger(maxRecoveryAttempts) || maxRecoveryAttempts < 0) {
+    throw new Error(`${path}.maxRecoveryAttempts must be a non-negative safe integer`)
+  }
+
   return Object.freeze({
     chain: Object.freeze(chain),
     switchOn: Object.freeze(checkedCategories),
     maxSwitchesPerTurn,
+    resumeInterruptedTurns,
+    maxRecoveryAttempts,
   })
 }
 
@@ -165,111 +200,18 @@ export interface ModelFallbackInternals {
   switchId?: () => string
 }
 
-/** One durable recovery route: the replacement and the route it replaced. */
-export interface ActiveFallbackRoute {
-  /** Route the session continues on. */
-  readonly route: RouteRef
-  /** Route this replacement stands in for. */
-  readonly replaces: RouteRef
-}
-
-/** Durable model-route fallback state folded from one session log. */
-export interface ModelFallbackState {
-  /** Replacement route in force, or null while the session routes normally. */
-  readonly active: ActiveFallbackRoute | null
-  /** Turn whose attempt list and switch count the state tracks. */
-  readonly turn: number | null
-  /** Routes that failed or replaced another route during the tracked turn. */
-  readonly attempted: RouteRef[]
-  /** Switches performed during the tracked turn. */
-  readonly switches: number
-  /** Step whose recovery found no usable alternative. */
-  readonly paused: { readonly turn: number; readonly step: number; readonly category: ModelFailureCategory } | null
-}
-
-declare module '@deepseek-ai/dsh-session-projection/types' {
-  interface SessionProjectionStateMap {
-    /** Durable model-route fallback state for one Session. */
-    llmModelFallback: ModelFallbackState
-  }
-}
-
-const INITIAL_STATE: ModelFallbackState = Object.freeze({
-  active: null,
-  turn: null,
-  attempted: [],
-  switches: 0,
-  paused: null,
-})
-
-const routeRefSchema = zod.object({ provider: zod.string().min(1), model: zod.string().min(1) })
-
-const categorySchema = zod.union(MODEL_FAILURE_CATEGORIES.map(category => zod.literal(category)))
-
-const modelFallbackStateSchema: zod.ZodType<ModelFallbackState> = zod.object({
-  active: zod.object({ route: routeRefSchema, replaces: routeRefSchema }).nullable(),
-  turn: zod.number().int().nonnegative().nullable(),
-  attempted: zod.array(routeRefSchema),
-  switches: zod.number().int().nonnegative(),
-  paused: zod.object({
-    turn: zod.number().int().nonnegative(),
-    step: zod.number().int().nonnegative(),
-    category: categorySchema,
-  }).nullable(),
-})
-
-function appendAttempted(attempted: readonly RouteRef[], route: RouteRef): RouteRef[] {
-  return attempted.some(previous => sameRoute(previous, route)) ? [...attempted] : [...attempted, { ...route }]
-}
-
 /**
- * Advance durable fallback state by one committed Session event.
- * @param state - state before the event.
- * @param event - next committed Session event.
- * @returns the same or an advanced state.
+ * Project one durable recovery route onto the live override registry.
+ * @param active - folded recovery route in force.
+ * @returns the override a request listener reads, with both route ends copied.
  */
-function applyModelFallbackState(state: ModelFallbackState, event: SessionEvent): ModelFallbackState {
-  // `model/selection` belongs to an entry-point package this plugin does not
-  // depend on: the string comparison keeps that event vocabulary out of the
-  // shared type graph while still honoring an explicit route choice.
-  const eventType: string = event.type
-  if (eventType === 'model/selection') return state.active === null ? state : { ...state, active: null }
-  switch (event.type) {
-    case 'turn/start':
-      return { ...state, turn: event.data.turn, attempted: [], switches: 0, paused: null }
-    case 'llm/model-switched': {
-      const active: ActiveFallbackRoute = { route: event.data.to, replaces: event.data.from }
-      if (event.data.turn !== state.turn) return { ...state, active }
-      return {
-        ...state,
-        active,
-        attempted: appendAttempted(appendAttempted(state.attempted, event.data.from), event.data.to),
-        switches: state.switches + 1,
-        paused: null,
-      }
-    }
-    case 'llm/model-fallback-exhausted':
-      return {
-        ...state,
-        paused: { turn: event.data.turn, step: event.data.step, category: event.data.category },
-      }
-    case 'request/header': {
-      if (state.active === null) return state
-      const route = { provider: event.data.header.config.provider, model: event.data.header.config.model }
-      return sameRoute(route, state.active.route) ? state : { ...state, active: null }
-    }
-    default:
-      return state
+function overrideOf(active: ActiveFallbackRoute): ModelRouteOverride {
+  return {
+    route: selectionOf(active.route),
+    replaces: { ...active.replaces },
+    ...active.previous === null ? {} : { previous: { ...active.previous } },
   }
 }
-
-const modelFallbackProjection = {
-  key: 'llmModelFallback',
-  stateVersion: 1,
-  stateSchema: modelFallbackStateSchema,
-  init: () => INITIAL_STATE,
-  apply: applyModelFallbackState,
-} satisfies ProjectionDefinition<'llmModelFallback', ModelFallbackState>
 
 /** Non-surface events this plugin appends; they never reach derived messages. */
 const LOG_ONLY_EVENT_TYPES: ReadonlySet<string> = new Set(['llm/model-switched', 'llm/model-fallback-exhausted'])
@@ -291,30 +233,64 @@ export function apply(ctx: Context, config: Config, internals: ModelFallbackInte
     return ctx.sessionProjections.stateOf(session, 'llmModelFallback') ?? INITIAL_STATE
   }
 
+  /**
+   * Force the buffered Session events onto durable storage before the retried
+   * request depends on them.
+   *
+   * The backend batches live appends, so a switch record that is only appended
+   * would be lost by a crash between the append and the batch window, and the
+   * restarted task would re-run the failed route. A rejected flush leaves the
+   * events buffered for the next drain (the backend retries), so the in-process
+   * recovery still proceeds and the failure is reported, never hidden.
+   * @param session - Session whose switch record must be durable.
+   */
+  async function persist(session: Session): Promise<void> {
+    const sessions = ctx.get('sessions')
+    /* v8 ignore next -- a composition without a persistence service keeps recovery in memory */
+    if (sessions === undefined) return
+    try {
+      await sessions.flush(session)
+    } catch (error: unknown) {
+      ctx.logger.error(
+        `llm-model-fallback: session "${session.id}" could not confirm the switch record reached storage `
+        + `(${String(error)}); the events stay buffered for the next flush`,
+      )
+    }
+  }
+
   /** Re-apply the recovered route to one request that would otherwise retry the failed one. */
   function overrideConfig(agent: Agent, config: LlmCallConfig): LlmCallConfig {
     const override = ctx.get('modelRouting')?.overrideFor(agent.ctx)
     if (override === undefined) return config
-    if (config.provider !== override.replaces.provider || config.model !== override.replaces.model) return config
+    // A request is standing in for the entry point's own route or for the
+    // replacement it already replaced; every later step seeds from the last
+    // logged header, so both ends describe the same recovery.
+    const replacesRequestedRoute = sameRoute(config, override.replaces)
+      || (override.previous !== undefined && sameRoute(config, override.previous))
+    if (!replacesRequestedRoute) return config
     const { reasoningEffort: _inheritedEffort, ...withoutInheritedEffort } = config
-    const route: ModelSelection = override.route
-    return {
-      ...withoutInheritedEffort,
-      provider: route.provider,
-      model: route.model,
-      ...route.reasoningEffort === undefined ? {} : { reasoningEffort: route.reasoningEffort },
-    }
+    return { ...withoutInheritedEffort, ...selectionOf(override.route) }
   }
 
   ctx.on('agent/request', async ({ agent }, next) => overrideConfig(agent, await next()), { prepend: true })
 
-  ctx.on('agent/created', ({ agent }) => {
+  ctx.on('agent/created', ({ agent, source }) => {
     const routing = ctx.get('modelRouting')
+    const state = readState(agent.session)
     /* v8 ignore next -- `inject` guarantees the Agent registry, which owns ctx.modelRouting */
     if (routing === undefined) return
-    const { active } = readState(agent.session)
+    const { active } = state
     if (active === null) routing.clearOverride(agent.ctx)
-    else routing.setOverride(agent.ctx, { route: active.route, replaces: active.replaces })
+    else routing.setOverride(agent.ctx, overrideOf(active))
+    // A resumed task that lost its turn owner is driven again here, before the
+    // Agent is published, so no human message has to restart it.
+    const continuation = continuationFor(state, policy, source)
+    if (continuation === undefined) return
+    agent.followup(continuation)
+    ctx.logger.info(
+      `llm-model-fallback: resuming session ${agent.session.id} without a new user message `
+      + `(attempt ${String(state.recoveryAttempts + 1)} of ${String(policy.maxRecoveryAttempts)})`,
+    )
   })
 
   ctx.on('session/event', (session, event) => {
@@ -357,13 +333,40 @@ export function apply(ctx: Context, config: Config, internals: ModelFallbackInte
     const failed: RouteRef = { provider: header.config.provider, model: header.config.model }
     if (failed.provider !== provider) return undefined
     const state = readState(agent.session)
-    if (state.switches >= policy.maxSwitchesPerTurn) return undefined
+    const messages = agent.session.deriveMessages()
+    const requiredModalities = requiredInputModalities(messages)
+    const requiredShape = requiredRequestShape(messages)
+    const recordExhaustion = (cause: FallbackExhaustionCause, rejected: RejectedCandidate[]): void => {
+      if (state.paused?.turn === turn && state.paused.step === step) return
+      agent.session.append('llm/model-fallback-exhausted', {
+        turn,
+        step,
+        category,
+        failure,
+        cause,
+        attempted: [...state.attempted],
+        rejected: [...rejected],
+      })
+    }
+    if (state.switches >= policy.maxSwitchesPerTurn) {
+      // The allowance is spent: the chain is not unusable, this turn is. Record
+      // the pause anyway so a reader can tell the two apart.
+      recordExhaustion('switch-limit-reached', [])
+      ctx.logger.warn(
+        `llm-model-fallback: switch allowance ${policy.maxSwitchesPerTurn} is spent for turn ${turn} `
+        + `after ${failure.code} from ${failed.provider}/${failed.model}`,
+      )
+      return undefined
+    }
     const resolution = await resolveCandidates({
       llm: ctx.llm,
       chain: policy.chain,
       failed,
       attempted: state.attempted,
-      requiredModalities: requiredInputModalities(agent.session.deriveMessages()),
+      requiredModalities,
+      requiredShape,
+      ...header.config.maxTokens === undefined ? {} : { outputTokens: header.config.maxTokens },
+      ...state.observedInputTokens === null ? {} : { observedInputTokens: state.observedInputTokens },
       /* v8 ignore next -- the turn signal aborted during the model-metadata lookup */
       ...aborted() ? {} : { signal },
     })
@@ -371,21 +374,12 @@ export function apply(ctx: Context, config: Config, internals: ModelFallbackInte
     if (aborted()) return undefined
     const target = resolution.eligible[0]
     if (target === undefined) {
-      if (state.paused?.turn !== turn || state.paused.step !== step) {
-        agent.session.append('llm/model-fallback-exhausted', {
-          turn,
-          step,
-          category,
-          failure,
-          attempted: [...state.attempted],
-          rejected: [...resolution.rejected],
-        })
-        ctx.logger.warn(
-          `llm-model-fallback: no configured alternative can serve turn ${turn} step ${step} `
-          + `after ${failure.code} from ${failed.provider}/${failed.model}; `
-          + `the step stays closed and the task keeps its durable state`,
-        )
-      }
+      recordExhaustion('no-eligible-candidate', [...resolution.rejected])
+      ctx.logger.warn(
+        `llm-model-fallback: no configured alternative can serve turn ${turn} step ${step} `
+        + `after ${failure.code} from ${failed.provider}/${failed.model}; `
+        + `the step stays closed and the task keeps its durable state`,
+      )
       return undefined
     }
     agent.session.append('llm/model-switched', {
@@ -395,13 +389,16 @@ export function apply(ctx: Context, config: Config, internals: ModelFallbackInte
       category,
       failure,
       from: failed,
-      to: { provider: target.provider, model: target.model },
+      to: selectionOf(target),
       rejected: [...resolution.rejected],
     })
-    ctx.get('modelRouting')?.setOverride(agent.ctx, {
-      route: selectionOf(target),
-      replaces: failed,
-    })
+    // The folded state names the entry-point route the recovery stands in for,
+    // so a second switch keeps replacing that same route.
+    const recovered = readState(agent.session).active
+    /* v8 ignore next -- the switch record just appended folds to an active route */
+    if (recovered === null) return undefined
+    ctx.get('modelRouting')?.setOverride(agent.ctx, overrideOf(recovered))
+    await persist(agent.session)
     ctx.logger.info(
       `llm-model-fallback: continuing turn ${turn} step ${step} on ${target.provider}/${target.model} `
       + `after ${failure.code} from ${failed.provider}/${failed.model}`,

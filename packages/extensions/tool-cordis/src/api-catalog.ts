@@ -1573,7 +1573,7 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
       {
         signature: 'setOverride(agentCtx: Context, override: ModelRouteOverride): void',
         description: 'Record or replace one Agent\'s recovery override.',
-        parameters: [{ name: 'agentCtx', description: 'the Agent\'s scoped context.' }, { name: 'override', description: 'replacement route and the route it replaces, both copied.' }],
+        parameters: [{ name: 'agentCtx', description: 'the Agent\'s scoped context.' }, { name: 'override', description: 'replacement route, the route it replaces, and the route it replaced most recently, all copied.' }],
       },
       {
         signature: 'clearOverride(agentCtx: Context): void',
@@ -6066,7 +6066,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'ModelRouteOverride',
-    declaration: 'export interface ModelRouteOverride {\n    readonly route: ModelSelection;\n    readonly replaces: ModelSelection;\n}',
+    declaration: 'export interface ModelRouteOverride {\n    readonly route: ModelSelection;\n    readonly replaces: ModelSelection;\n    readonly previous?: ModelSelection | undefined;\n}',
   },
   {
     name: 'ModEvents',

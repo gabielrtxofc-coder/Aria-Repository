@@ -44,6 +44,12 @@ export interface ScriptedRoute {
   retryPolicy?: RetryPolicyConfig
   /** Selectable reasoning efforts this route declares, least to greatest. */
   reasoningEfforts?: string[]
+  /** Provider-owned context capacity this route declares. */
+  contextWindow?: number
+  /** Declared mid-conversation system prompt handling. */
+  systemPromptUpdate?: 'in-history'
+  /** Declared mid-conversation tool declaration handling. */
+  toolUpdate?: 'in-history' | 'addition-only'
 }
 
 /** Adapter whose routes are scripted per provider and recorded per request. */
@@ -53,7 +59,10 @@ export class ScriptedAdapter extends LlmAdapter {
 
   private readonly retryPolicies: Readonly<Record<string, ResolvedRetryPolicy | undefined>>
 
-  constructor(private readonly routes: Readonly<Record<string, ScriptedRoute>>) {
+  constructor(
+    private readonly routes: Readonly<Record<string, ScriptedRoute>>,
+    private readonly observe?: (options: GenerateOptions) => void,
+  ) {
     super()
     this.retryPolicies = Object.fromEntries(Object.entries(routes).map(([provider, route]) => [
       provider,
@@ -78,6 +87,15 @@ export class ScriptedAdapter extends LlmAdapter {
             efforts: this.routes[provider]?.reasoningEfforts?.map(effort => ({ id: ReasoningEffortId(effort), name: effort })),
           },
         },
+      ...this.routes[provider]?.contextWindow === undefined
+        ? {}
+        : { context: { contextWindow: this.routes[provider]?.contextWindow ?? 0 } },
+      ...this.routes[provider]?.systemPromptUpdate === undefined
+        ? {}
+        : { systemPromptUpdate: this.routes[provider]?.systemPromptUpdate },
+      ...this.routes[provider]?.toolUpdate === undefined
+        ? {}
+        : { toolUpdate: this.routes[provider]?.toolUpdate },
     })
   }
 
@@ -87,6 +105,7 @@ export class ScriptedAdapter extends LlmAdapter {
 
   async * stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
     this.requests.push(options)
+    this.observe?.(options)
     const route = this.routes[options.provider]
     if (route === undefined) throw new Error(`ScriptedAdapter: no route "${options.provider}"`)
     const entry = route.responses.shift()
@@ -151,10 +170,18 @@ export interface HarnessOptions {
   retry?: boolean
   /** Root directory for the real JSONL session backend. */
   persistenceRoot?: string
+  /** Physical encoding of the JSONL backend; `none` lets a test read the log. */
+  persistenceCompression?: 'zstd' | 'none'
   /** Register the `probe` tool so a scripted task can take several steps. */
   probeTool?: boolean
   /** Deterministic switch identities, consumed in order. */
   switchIds?: string[]
+  /** Continue an interrupted or paused task when the Session is resumed. */
+  resumeInterruptedTurns?: boolean
+  /** Automatic continuation turns allowed after the last human message. */
+  maxRecoveryAttempts?: number
+  /** Observer invoked with each request before the adapter streams it. */
+  onRequest?: (options: GenerateOptions) => void
 }
 
 /** Mounted harness returned to a suite. */
@@ -177,6 +204,9 @@ export function promptText(text: string): ReturnType<typeof createUserMessage> {
  */
 export async function mountFallbackHarness(options: HarnessOptions): Promise<FallbackHarness> {
   const ctx = options.ctx ?? new Context()
+  // The observer runs inside the adapter's dispatch, after every listener that
+  // precedes the request (durability checkpoints included) has settled.
+  const observe = options.onRequest
   await ctx.plugin(LlmRuntime)
   await ctx.plugin(SessionStore)
   await ctx.plugin(SessionProjectionRegistry)
@@ -185,10 +215,13 @@ export async function mountFallbackHarness(options: HarnessOptions): Promise<Fal
   await ctx.plugin(AgentRegistry)
   // The backend mounts before the loop so teardown drains live writers first.
   if (options.persistenceRoot !== undefined) {
-    await ctx.plugin(JsonlSessionPersistence, { root: options.persistenceRoot })
+    await ctx.plugin(JsonlSessionPersistence, {
+      root: options.persistenceRoot,
+      ...options.persistenceCompression === undefined ? {} : { compression: options.persistenceCompression },
+    })
   }
   await ctx.plugin(AgentLoop, { agents: [] })
-  const adapter = new ScriptedAdapter(options.routes)
+  const adapter = new ScriptedAdapter(options.routes, observe)
   ctx.llm.registerAdapter(Object.keys(options.routes), adapter)
 
   if (options.probeTool === true) {
@@ -203,6 +236,8 @@ export async function mountFallbackHarness(options: HarnessOptions): Promise<Fal
     chain: options.chain ?? [],
     ...options.switchOn === undefined ? {} : { switchOn: options.switchOn },
     ...options.maxSwitchesPerTurn === undefined ? {} : { maxSwitchesPerTurn: options.maxSwitchesPerTurn },
+    ...options.resumeInterruptedTurns === undefined ? {} : { resumeInterruptedTurns: options.resumeInterruptedTurns },
+    ...options.maxRecoveryAttempts === undefined ? {} : { maxRecoveryAttempts: options.maxRecoveryAttempts },
   }
   if (options.switchIds === undefined) {
     await ctx.plugin(modelFallback, config)

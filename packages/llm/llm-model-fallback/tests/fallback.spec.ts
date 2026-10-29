@@ -60,6 +60,9 @@ describe('model-route fallback', () => {
       attempted: [],
       switches: 0,
       paused: null,
+      interrupted: null,
+      recoveryAttempts: 0,
+      observedInputTokens: 10,
     })
   })
 
@@ -121,11 +124,14 @@ describe('model-route fallback', () => {
 
     // The switch is durable, non-model-visible, and the recorded header follows it.
     expect(ctx.sessionProjections.stateOf(agent.session, 'llmModelFallback')).toEqual({
-      active: { route: SECONDARY, replaces: PRIMARY },
+      active: { route: SECONDARY, replaces: PRIMARY, previous: PRIMARY },
       turn: 1,
       attempted: [PRIMARY, SECONDARY],
       switches: 1,
       paused: null,
+      interrupted: null,
+      recoveryAttempts: 0,
+      observedInputTokens: 10,
     } satisfies ModelFallbackState)
     expect(agent.session.requestHeader()?.config).toMatchObject(SECONDARY)
     expect(agent.session.deriveMessages().some(message => JSON.stringify(message).includes('model-switched')))

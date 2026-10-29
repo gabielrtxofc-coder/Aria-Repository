@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Mount `@deepseek-ai/dsh-llm-model-fallback` to continue an open agent step on another configured model when the current route cannot serve it. Quota, billing, exhausted-retry, and explicitly opted-in authentication failures switch to the next registered, capable, not-yet-tried candidate in chain order; transient limits reach the retry policy first. Every switch is one durable `llm/model-switched` record, the recovered route survives later turns and restarts, and an unusable chain leaves the task paused on its durable history instead of losing completed work.
+Mount `@deepseek-ai/dsh-llm-model-fallback` to continue an open agent step on another configured model when the current route cannot serve it. Quota, billing, exhausted-retry, and explicitly opted-in authentication failures switch to the next registered, capable, not-yet-tried candidate in chain order; transient limits reach the retry policy first. Every switch is one durable `llm/model-switched` record, the recovered route survives later turns and restarts, and an unusable chain leaves the task paused on its durable history instead of losing completed work. Eligibility covers what the retained conversation actually needs — input modalities, mid-conversation system prompts and tool declarations, remaining context capacity, and the requested reasoning effort — the switch record is confirmed on storage before the retried request leaves, and a deployment can opt in to continuing an interrupted or paused task on resume without a new user message.
 
 ## Table of Contents
 
@@ -44,11 +44,16 @@ Choose it when a composition already mounts the agent loop and the deployment ca
         reasoningEffort: low
     switchOn: [quota, billing, unavailable, transient]
     maxSwitchesPerTurn: 2
+    # Opt-in autonomous continuation on resume.
+    resumeInterruptedTurns: false
+    maxRecoveryAttempts: 1
 ```
 
 `chain` is the preference order and is required; an entry names a `provider`, its `model`, and optionally an adapter-owned `reasoningEffort` that replaces the failed request's effort. `switchOn` defaults to `transient`, `unavailable`, `quota`, and `billing`; `auth` is opt-in because a malformed credential is a configuration defect rather than a route outage. `maxSwitchesPerTurn` defaults to the chain length, so a turn never tries more alternatives than it configures.
 
 A load-time rejection is deliberate: an unknown key, an empty provider or model, a repeated route, an empty or unknown `switchOn` category, or a negative switch allowance fails plugin load instead of silently disabling recovery for a deployment that expected it.
+
+`resumeInterruptedTurns` (default `false`) lets a resumed Session continue a task whose turn was interrupted or left paused by an exhausted chain, without waiting for a new user message; `maxRecoveryAttempts` (default `1`) bounds how many automatic continuations may follow the last human message. Both stay off in shipped products: a resumed Session is normally the user's turn to speak, and a Web or SDK surface must not spend tokens unasked.
 
 ### What you can observe
 
@@ -58,9 +63,15 @@ A switch also records a recovery route for that Agent: prompt assembly, request 
 
 ### Failures and recovery
 
-Classification reads normalized failure codes and HTTP statuses, never message text, except for provider quota wording that arrives with no distinct code. Transient codes and statuses (`RATE_LIMIT`, `TIMEOUT`, `TRANSPORT`, `EMPTY_RESPONSE`, 408, 429, 5xx) delegate downstream first: the retry policy owns same-route retries, and this plugin acts only after that policy declines the failure. Quota and billing states, `AUTH` when configured, and unknown codes that a deployment maps to a switchable category move to the next candidate.
+Classification prefers provider-normalized facts over wording, in that order: an explicit code (`AUTH`, `INVALID_CREDENTIAL`, `BILLING`, `QUOTA`, `RATE_LIMIT`, `CONTEXT_WINDOW_EXCEEDED`, …), then the HTTP status, and only then provider quota phrasing that arrives with no distinct code. A rejected credential therefore never becomes a quota switch merely because its message says "quota". Transient codes and statuses (`RATE_LIMIT`, `TIMEOUT`, `TRANSPORT`, `EMPTY_RESPONSE`, 408, 429, 5xx) delegate downstream first: the retry policy owns same-route retries, and this plugin acts only after that policy declines the failure. Quota and billing states, `AUTH` when configured, and unknown codes that a deployment maps to a switchable category move to the next candidate.
 
-A candidate is eligible only when its provider is registered in this process, its exact model resolves through the owning adapter, it did not already fail during this turn, and its declared input modalities accept the retained conversation — an image-bearing task never lands on a text-only route. Every rejection is written into the switch record, so an operator can see why a chain skipped a route.
+A candidate is eligible only when its provider is registered in this process, its exact model resolves through the owning adapter, it did not already fail during this turn, and it can reproduce what the retained conversation needs: the declared input modalities (an image-bearing task never lands on a text-only route), mid-conversation system prompts and tool declarations the history already carries, enough context capacity for the measured input plus the request's output cap, and the reasoning effort this candidate would be called with. One incompatible candidate never ends the search — the scan continues down the chain — and every rejection is written into the switch record with its reason, so an operator can see why a chain skipped a route.
+
+### Durability and restart
+
+Before the retried request is dispatched, the plugin awaits the Session's `session/flush` durability checkpoint: the switch record must be a byte the next process can read, not an append waiting in a batch window. A rejected flush is reported and the in-process recovery continues; the plugin never claims the record is durable when the checkpoint failed.
+
+The folded state keeps the entry route, the route it replaced most recently, the routes this turn already tried, the switch count, the paused step, why the chain ended, the observed input size, and the number of automatic continuations, so a restart reproduces the routing decision — including the reasoning effort actually in use, not the chain's configured default. A later `model/selection` or a request header naming another route retires the recovery, so a user choice always wins.
 
 -----
 
@@ -82,7 +93,9 @@ Three rules shape the plugin. **Downstream first:** the failure reaches `agent/r
 |---|---|
 | [`src/index.ts`](src/index.ts) | The plugin: configuration schema and policy, the durable projection, and the request-recovery listener |
 | [`src/classification.ts`](src/classification.ts) | Provider-neutral failure classification into switch categories |
-| [`src/selection.ts`](src/selection.ts) | Candidate eligibility: registration, model metadata, and input modalities |
+| [`src/selection.ts`](src/selection.ts) | Candidate eligibility: registration, model metadata, call shapes, context capacity, and reasoning effort |
+| [`src/state.ts`](src/state.ts) | The `llmModelFallback` projection fold and the durable state it reads |
+| [`src/continuation.ts`](src/continuation.ts) | The opt-in autonomous continuation of an ownerless task |
 | [`src/route.ts`](src/route.ts) | Configured route vocabulary and the selection one route contributes |
 | [`src/types.ts`](src/types.ts) | Durable event payloads, failure categories, and rejection reasons |
 
@@ -92,7 +105,7 @@ A failed attempt arrives with the provider that served it, the turn, the step, a
 
 ### Durable state
 
-The `llmModelFallback` projection folds four event kinds: `turn/start` resets the per-turn attempt list and switch count, `llm/model-switched` records the replacement route and adds both endpoints to the attempt list, `llm/model-fallback-exhausted` records the paused step, and a `request/header` or `model/selection` naming another route clears the replacement. Because the fold is a projection, a resumed Session starts with the route the previous process ended on.
+The `llmModelFallback` projection folds `turn/start` (resetting the per-turn attempt list and switch count), `llm/model-switched` (the replacement route, the entry route it stands in for, the route it replaced most recently, and both endpoints added to the attempt list), `llm/model-fallback-exhausted` (the paused step and why the chain ended), `assistant/message` usage (the observed input size), `user/message` source (how many automatic continuations this process already made), and a `request/header` or `model/selection` naming another route (clearing the replacement). Because the fold is a projection, a resumed Session starts with the route the previous process ended on, and the `previous` endpoint lets a multi-step switch keep replacing the entry route instead of dropping back to it.
 
 ### Waterfall and plugin order
 
@@ -139,8 +152,9 @@ These limits define where the executor stops and future work begins. They are cu
 
 - **The alternative model is not told the route changed** — the switch is logged and the header records the new route, but no model-visible notice states that earlier assistant turns came from another model; a deployment that needs that disclosure owns the prompt text.
 - **Same-route retries are not owned here** — a transient failure reaches the retry policy first, so a composition without that policy switches on the first transient failure and never retries the original route.
-- **Only declared capabilities gate a candidate** — eligibility compares input modalities against adapter metadata; an adapter that reports no modality list stays eligible, so a route that accepts the request shape but fails on content still costs one failed attempt.
-- **A paused task needs a caller to resume** — the plugin records the exhausted step and leaves the failure terminal; nothing reschedules the paused turn automatically.
+- **Only declared capabilities gate a candidate** — eligibility compares adapter metadata against the retained conversation; an adapter that reports no modality list, no context window, or no call-shape support stays eligible, and the context check needs a measured input size from a previous response.
+- **Autonomous continuation is opt-in, bounded, and off by default** — with `resumeInterruptedTurns` a resumed Session continues an interrupted or paused task by itself, at most `maxRecoveryAttempts` times after the last human message; a deployment that leaves it off gets the durable pause and nothing more, and no product should read that default as autonomous recovery.
+- **Tool side effects are reconciled, never re-executed by the harness** — crash repair records the unknown outcome of a call whose result was never stored, and the continuation instructs the model to verify external state before retrying. That is duplicate *suppression*, not exactly-once execution: a model that re-issues a non-idempotent call can still repeat its side effect.
 - **Switches are per-turn bounded** — `maxSwitchesPerTurn` counts switches, not failed requests, and the counter resets on `turn/start`, so a long task can spend the full allowance again on the next turn.
 
 <a id="dev-note"></a>
@@ -153,6 +167,8 @@ This Dev Note is non-authoritative working context: notes for maintainers and op
 
 - The plugin reads the durable projection rather than in-memory counters for the switch allowance, so a resumed process cannot exceed the per-turn budget and a replay of the same turn reproduces the same decisions.
 - `model/selection` is matched by event name instead of importing the entry-point package: the fallback package must not depend on a controller it never mounts.
-- Candidate resolution resolves exact model metadata through the owning adapter, which is the only place that knows whether a route accepts images.
+- Candidate resolution resolves exact model metadata through the owning adapter, which is the only place that knows whether a route accepts images, a mid-conversation system prompt, or a reasoning effort.
+- Autonomous continuation hangs off `agent/created` with `source === 'resume'`; it is not a timer and not a new-message path, which is why it can run before the Agent is published and why the shipped default keeps it off.
+- The durability checkpoint reuses `ctx.sessions.flush`, the one flush entry point the Session store owns, rather than dispatching `session/flush` directly.
 
 </details>

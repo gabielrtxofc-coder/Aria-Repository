@@ -786,7 +786,7 @@ overrideFor(agentCtx: Context): ModelRouteOverride | undefined
 /**
  * Record or replace one Agent's recovery override.
  * @param agentCtx - the Agent's scoped context.
- * @param override - replacement route and the route it replaces, both copied.
+ * @param override - replacement route, the route it replaces, and the route it replaced most recently, all copied.
  */
 setOverride(agentCtx: Context, override: ModelRouteOverride): void
 

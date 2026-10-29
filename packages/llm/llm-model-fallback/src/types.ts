@@ -28,6 +28,18 @@ export interface RouteRef {
 }
 
 /**
+ * One route together with the request control that must survive a restart.
+ *
+ * A switch record is the only durable description of what the resumed session
+ * must reproduce, so the selected reasoning effort travels with the route
+ * rather than being re-derived from configuration that may have changed.
+ */
+export interface RouteSelection extends RouteRef {
+  /** Adapter-owned reasoning effort the recovered route was used with. */
+  reasoningEffort?: string | undefined
+}
+
+/**
  * How a failed model request is classified for recovery.
  *
  * `transient` and `unavailable` may succeed on the same route later;
@@ -56,12 +68,23 @@ export const MODEL_FAILURE_CATEGORIES: readonly ModelFailureCategory[] = [
   'transient', 'unavailable', 'quota', 'billing', 'auth', 'configuration', 'context', 'unknown',
 ]
 
-/** Why one configured candidate was not selected. */
+/**
+ * Why one configured candidate was not selected.
+ *
+ * `capability-mismatch` covers a declared negative capability (an input
+ * modality the retained conversation needs); the remaining reasons name the
+ * exact request shape the candidate cannot reproduce, so a reviewer can tell a
+ * missing route from an incompatible one.
+ */
 export type CandidateRejectionReason =
   | 'already-attempted'
   | 'provider-unregistered'
   | 'model-unknown'
   | 'capability-mismatch'
+  | 'context-window-too-small'
+  | 'reasoning-effort-unsupported'
+  | 'prompt-format-mismatch'
+  | 'tool-format-mismatch'
 
 /** One configured candidate that could not serve the failed request. */
 export interface RejectedCandidate {
@@ -85,11 +108,18 @@ export interface ModelSwitchedEventData {
   failure: LlmFailure
   /** Route that failed. */
   from: RouteRef
-  /** Route selected to continue the request. */
-  to: RouteRef
+  /** Route selected to continue the request, with the request control it carries. */
+  to: RouteSelection
   /** Configured candidates rejected before the selected route, in chain order. */
   rejected: RejectedCandidate[]
 }
+
+/** Why recovery stopped short of selecting a route. */
+export type FallbackExhaustionCause =
+  /** Every configured candidate was attempted, unregistered, or incompatible. */
+  | 'no-eligible-candidate'
+  /** The per-turn switch allowance was already spent. */
+  | 'switch-limit-reached'
 
 /** Durable record that no configured candidate could continue a failed request. */
 export interface ModelFallbackExhaustedEventData {
@@ -101,6 +131,8 @@ export interface ModelFallbackExhaustedEventData {
   category: ModelFailureCategory
   /** Serialized provider failure that ended the recovery attempt. */
   failure: LlmFailure
+  /** Why recovery stopped: an unusable chain or an exhausted switch allowance. */
+  cause: FallbackExhaustionCause
   /** Routes already tried or skipped during this turn. */
   attempted: RouteRef[]
   /** Configured candidates rejected while looking for an alternative. */

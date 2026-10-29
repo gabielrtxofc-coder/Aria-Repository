@@ -9,8 +9,8 @@
   en: 5c4aaf3f86f09e2b
   zh: 13f0cf0492a2a605
 /deepseek-ai-dsh-llm-model-fallback/summary:
-  en: e06a005fd34b9c98
-  zh: ade58085f5a993b7
+  en: cdb602ef05d08a9b
+  zh: ae63075be14e0047
 /deepseek-ai-dsh-llm-model-fallback/table-of-contents:
   en: d152484eb41ac6b4
   zh: 09388d293f9be9cb
@@ -21,14 +21,17 @@
   en: 734023156d5a3454
   zh: 3a129b38a4b0be2b
 /deepseek-ai-dsh-llm-model-fallback/use-this-package/minimal-configuration:
-  en: 37b51dbfda5343e0
-  zh: dc7661503be36eac
+  en: 4f82d6943de3b3f4
+  zh: dc4a01a67bc8e9fb
 /deepseek-ai-dsh-llm-model-fallback/use-this-package/what-you-can-observe:
   en: 20fa983c02d8011e
   zh: bebac62116fe0104
 /deepseek-ai-dsh-llm-model-fallback/use-this-package/failures-and-recovery:
-  en: cb8c4a96a87dd5c1
-  zh: 11dbbbaf957a9dea
+  en: 3a1e7152086cb38a
+  zh: 94c6ba4d6dda8436
+/deepseek-ai-dsh-llm-model-fallback/use-this-package/durability-and-restart:
+  en: 0858cc88e228e235
+  zh: 36cc9288e7bc0c48
 /deepseek-ai-dsh-llm-model-fallback/understand-the-implementation:
   en: 346aa8e56d458748
   zh: ff031f6040a4fb73
@@ -36,14 +39,14 @@
   en: 1b5ebec441a39b98
   zh: ed3f4815ba855286
 /deepseek-ai-dsh-llm-model-fallback/understand-the-implementation/source-map:
-  en: 7b24ec8676220992
-  zh: a031eb05446ca70f
+  en: 61771f823e956c5e
+  zh: eeb4ed760ef76677
 /deepseek-ai-dsh-llm-model-fallback/understand-the-implementation/recovery-flow:
   en: e2395f0137bae4a5
   zh: db0b03265d229eca
 /deepseek-ai-dsh-llm-model-fallback/understand-the-implementation/durable-state:
-  en: a1027b6395129223
-  zh: 9b7b129c3c180450
+  en: 121db12268b31633
+  zh: 850b3c92c93756d6
 /deepseek-ai-dsh-llm-model-fallback/understand-the-implementation/waterfall-and-plugin-order:
   en: 5e9ad2c30d897e8e
   zh: c2e9415077c3b50f
@@ -66,8 +69,8 @@
   en: 1028c9a4a0b235cd
   zh: 940db1517f702378
 /deepseek-ai-dsh-llm-model-fallback/known-limitations-and-deferred-work:
-  en: 71f5bd3a4ba669ed
-  zh: 5acc1ccbd661e569
+  en: 6f7f5b1ea7447f3e
+  zh: d8a6382711b0b55a
 /deepseek-ai-dsh-llm-model-fallback/known-limitations-and-deferred-work/dev-note:
-  en: 3c464fc293b99717
-  zh: 664827c48b82abd9
+  en: e247db6b26cb7e35
+  zh: 665f7f25fb69fc7d
