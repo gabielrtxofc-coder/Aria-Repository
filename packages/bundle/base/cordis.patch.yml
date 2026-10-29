@@ -113,7 +113,6 @@
       name: '@deepseek-ai/dsh-llm-model-fallback'
       config:
         chain: []
-        maxSwitchesPerTurn: 1
         resumeInterruptedTurns: false
         maxRecoveryAttempts: 1
 
