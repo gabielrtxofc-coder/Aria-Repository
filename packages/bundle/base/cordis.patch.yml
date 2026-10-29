@@ -94,6 +94,28 @@
     - id: llm-retry
       name: '@deepseek-ai/dsh-llm-retry'
 
+    # Route fallback: when a request fails for a recoverable reason, retry the
+    # SAME step on the next configured alternative instead of abandoning the
+    # task. The chain is a policy decision, so it is empty here: the row mounts,
+    # folds its state projection, and switches nothing until a later layer (the
+    # profile's cordis.patch.yml or a --patch overlay) names the alternatives —
+    # for example:
+    #
+    #   - id: llm-model-fallback
+    #     config:
+    #       chain:
+    #         - provider: deepseek-official
+    #           model: deepseek-pro
+    #
+    # Automatic continuation on resume stays off for shipped products: a
+    # resumed Session is the user's turn to speak unless a deployment opts in.
+    - id: llm-model-fallback
+      name: '@deepseek-ai/dsh-llm-model-fallback'
+      config:
+        chain: []
+        resumeInterruptedTurns: false
+        maxRecoveryAttempts: 1
+
     # Live Config forms persist through the active profile patch.
 
     # Live configuration forms persist through the launcher's profile.

@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Model Route Fallback",
+    "description": "Continue a task on another model when the current one cannot serve the request."
+  }
+}

@@ -1,0 +1,28 @@
+# Bilingual-pair consistency record for 2026-10-27-llm-model-fallback.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/persistence-changes/2026-10-27-llm-model-fallback.md
+/:
+  en: 3d5a424ae7d7e46b
+  zh: c22a8e4a62d8cc1a
+/2026-10-27-llm-model-fallback:
+  en: 29e7c2ecd65ee9c3
+  zh: ed71075816b08853
+/2026-10-27-llm-model-fallback/summary:
+  en: aac7b8d24fa8bf18
+  zh: 4ae02d7479d62dd8
+/2026-10-27-llm-model-fallback/table-of-contents:
+  en: 6cf314a069ceb451
+  zh: 9adff678e9ecab3b
+/2026-10-27-llm-model-fallback/declaration:
+  en: 6907136f28e48c90
+  zh: 02f8298485f3d8e7
+/2026-10-27-llm-model-fallback/compatibility:
+  en: 38e055b66cb8a2e6
+  zh: 02b34eece60465ff
+/2026-10-27-llm-model-fallback/verification:
+  en: 63a6063502032677
+  zh: b1ebcf4358d630ef
+/2026-10-27-llm-model-fallback/dev-note:
+  en: b75c8458928b72b9
+  zh: 003ba4e17b4b5269
