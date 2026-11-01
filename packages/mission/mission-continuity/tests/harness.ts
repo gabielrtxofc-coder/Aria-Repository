@@ -117,6 +117,10 @@ export interface HarnessOptions {
   readonly onContext?: (ctx: Context) => void
   /** Provider the recovered Agent is composed with; the deployment's choice. */
   readonly provider?: string
+  /** Session-scoped setup the deployment adds while composing a recovered Agent. */
+  readonly setup?: (agent: Agent) => void
+  /** Compose recovered Agents with no provider/model, as an unconfigured deployment would. */
+  readonly emptyPlan?: boolean
 }
 
 /** One mounted composition rooted at a durable directory. */
@@ -155,9 +159,16 @@ export async function mountHarness(options: HarnessOptions): Promise<MissionHarn
   // The composition owns provider/model for a resumed Agent; recovery never
   // invents a route. This listener is the deployment's half of the seam.
   const provider = options.provider ?? 'mock'
+  const setup = options.setup
+  const emptyPlan = options.emptyPlan ?? false
   ctx.effect(() => ctx.on('mission/agent-setup', async (request, next) => ({
     ...await next(request),
-    agentOptions: { provider, model: provider },
+    ...emptyPlan
+      ? {}
+      : {
+          agentOptions: { provider, model: provider },
+          ...setup === undefined ? {} : { setup: async (_agentCtx: Context, agent: Agent) => { setup(agent) } },
+        },
   })))
   const adapter = new ScriptedAdapter(options.script)
   ctx.llm.registerAdapter(['mock'], adapter)

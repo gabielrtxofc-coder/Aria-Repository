@@ -230,6 +230,10 @@ export default defineConfig({
       // them inside the unit process, so real subprocess/Worker tests cover their thin entry glue.
       exclude: [
         'packages/*/*/src/types.ts',
+        // Declaration-only module (interfaces plus cordis declaration merging)
+        // and the package barrel: neither carries an executable statement.
+        'packages/mission/mission-continuity/src/domain.ts',
+        'packages/mission/mission-continuity/src/index.ts',
         'packages/*/*/src/bin.ts',
         'packages/*/*/src/worker.ts',
         // The built Node entry invokes the independently covered process bootstrap through fd 7.

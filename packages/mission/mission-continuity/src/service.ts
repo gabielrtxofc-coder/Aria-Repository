@@ -18,12 +18,14 @@ import { z as zod } from 'zod'
 import type { ZodType } from 'zod'
 import { agentEvents } from '@deepseek-ai/dsh-agent'
 import type { Agent } from '@deepseek-ai/dsh-agent'
+// Type-only: declares the `todos` projection key this service reads for the plan.
+import type {} from '@deepseek-ai/dsh-tool-todo'
+import type { RecoveryNoticeStep } from './prompt.ts'
 import { GoalId } from '@deepseek-ai/dsh-goal'
 import { TOOL_OUTCOME_UNKNOWN } from '@deepseek-ai/dsh-session'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-session-projection'
 import type { ProjectionDefinition } from '@deepseek-ai/dsh-session-projection'
-import type { TodoItem } from '@deepseek-ai/dsh-tool-todo/types'
 import { applyMissionChange, decodeMissionChange, missionChangeRef } from './fold.ts'
 import type { MissionFoldState } from './fold.ts'
 import {
@@ -345,8 +347,13 @@ function resolveInterruption(value: MissionInterruption): MissionInterruption {
     : { kind: value.kind, at: value.at, detail: value.detail }
 }
 
-/** Resolve deployment configuration. */
-function resolveConfig(config: Config): ResolvedConfig {
+/**
+ * Resolve deployment configuration; exported so the documented defaults stay
+ * directly testable without a composition.
+ * @param config - partial deployment configuration.
+ * @returns the complete configuration every consumer reads.
+ */
+export function resolveConfig(config: Config): ResolvedConfig {
   return {
     sweepOnStartup: config.sweepOnStartup ?? true,
     defaultMaxRecoveryAttempts: positiveInteger(
@@ -444,9 +451,12 @@ export class MissionService extends Service {
    * @param agent - owning live agent.
    * @returns plan entries, empty when no plan owner is composed for the session.
    */
-  plan(agent: Agent): readonly TodoItem[] {
+  plan(agent: Agent): readonly RecoveryNoticeStep[] {
     this.assertLive(agent)
-    return this.ctx.sessionProjections.stateOf(agent.session, 'todos') ?? []
+    // The todo projection owns the plan; this package publishes only the step
+    // shape recovery renders, so no foreign plan type leaks through the API.
+    return (this.ctx.sessionProjections.stateOf(agent.session, 'todos') ?? [])
+      .map(item => ({ content: item.content, status: item.status }))
   }
 
   /**
@@ -474,7 +484,7 @@ export class MissionService extends Service {
       objective: spec.objective,
       ...spec.maxGoalRounds === undefined ? {} : { maxGoalRounds: spec.maxGoalRounds },
     })
-    const now = Math.max(Date.now(), 0)
+    const now = Date.now()
     const mission: MissionSnapshot = {
       id: MissionId(`mission-${randomUUID()}`),
       revision: 1,
@@ -830,7 +840,9 @@ export class MissionService extends Service {
     try {
       agentEvents(this.ctx, agent).emit('mission/changed', { change: notification })
     } catch (error: unknown) {
+      /* v8 ignore start -- agentEvents contains listener failures; only a dispatch error reaches this guard. */
       this.ctx.logger.warn(`mission-continuity: mission/changed listener failed: ${reasonOf(error)}`)
+      /* v8 ignore stop */
     }
   }
 }

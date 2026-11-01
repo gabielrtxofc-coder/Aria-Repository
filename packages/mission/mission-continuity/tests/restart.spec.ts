@@ -74,6 +74,12 @@ describe('restart continuity', () => {
     contexts.splice(contexts.indexOf(first.ctx), 1)
 
     const second = await mount(root, [textResponse('continued work'), textResponse('done')], { sweepOnStartup: false })
+    // Activation is process-local, so observe the transition instead of racing
+    // the driver that disarms the objective once the resumed round finishes.
+    const activations: string[] = []
+    second.ctx.on('goal/activation-changed', ({ goal }) => {
+      if (goal !== undefined) activations.push(goal.activation)
+    })
     await second.ctx.missions.sweep()
     const resumed = second.ctx.agents.get(SessionId('mission-session'))!
     // The recovery notice is a logged, model-visible message — not hidden state.
@@ -85,8 +91,8 @@ describe('restart continuity', () => {
     const texts = second.adapter.requests.map(request => requestText(request))
     expect(texts.some(text => text.includes('<mission_recovery '))).toBe(true)
     expect(texts.some(text => text.includes('finish the migration'))).toBe(true)
-    // The objective is re-armed, so the same-session driver keeps going.
-    expect(second.ctx.goals.get(resumed)?.activation).toBe('armed')
+    // The objective was re-armed, so the same-session driver kept going.
+    expect(activations).toContain('armed')
   })
 
   it('does not duplicate attempts when the sweep runs twice', async () => {

@@ -134,13 +134,13 @@ export class MissionSupervisor {
    */
   async dispose(): Promise<void> {
     this.stopping = true
-    const waits: Promise<void>[] = []
-    for (const sessionId of [...this.handles.keys()]) {
-      const handle = this.handles.get(sessionId)
+    const waits: Promise<unknown>[] = []
+    for (const [sessionId, handle] of [...this.handles]) {
       this.handles.delete(sessionId)
-      if (handle !== undefined) waits.push(handle.dispose())
+      waits.push(handle.dispose())
     }
-    if (this.running !== undefined) waits.push(this.running.then(() => undefined, () => undefined))
+    // `allSettled` already contains a failing sweep or release.
+    if (this.running !== undefined) waits.push(this.running)
     await Promise.allSettled(waits)
   }
 
@@ -216,10 +216,6 @@ export class MissionSupervisor {
     if (goal === undefined || goal.id !== mission.goal.id) {
       await this.hold(row, 'objective-missing', 'The mission objective is no longer current for this session.')
       return 'held'
-    }
-    if (goal.phase === 'complete') {
-      await this.settle(row)
-      return 'settled'
     }
     if (goal.phase === 'paused' || goal.phase === 'blocked') {
       await this.hold(row, `objective-${goal.phase}`, goal.blockedReason?.message
@@ -301,8 +297,11 @@ export class MissionSupervisor {
       return
     }
     if (change.goal?.phase === 'blocked') {
-      await this.hold(row, change.goal.blockedReason?.code ?? 'objective-blocked',
-        change.goal.blockedReason?.message ?? 'The mission objective reported a blocker.')
+      // `goals.block` always records a reason; the fallback keeps a row written
+      // by an older producer readable instead of asserting on it.
+      /* v8 ignore next -- goals.block always records a reason */
+      const blocked = change.goal.blockedReason ?? { code: 'objective-blocked', message: 'The mission objective reported a blocker.' }
+      await this.hold(row, blocked.code, blocked.message)
       return
     }
     if (row.revision === mission.revision && row.state === this.service.rowState(mission)) return

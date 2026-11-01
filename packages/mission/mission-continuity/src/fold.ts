@@ -259,7 +259,11 @@ export function decodeMissionChange(value: unknown): MissionChangeMeta {
   return snapshot
 }
 
-/** Ref of one decoded change, including a clear tombstone. */
+/**
+ * Ref of one decoded change, including a clear tombstone.
+ * @param change - decoded change committed to the session log.
+ * @returns the mission identity and revision the change produced.
+ */
 export function missionChangeRef(change: MissionChangeMeta): MissionRef {
   return change.operation === 'clear'
     ? { id: change.cleared.id, revision: change.cleared.revision }
