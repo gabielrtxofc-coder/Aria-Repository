@@ -2113,6 +2113,9 @@ importers:
       '@deepseek-ai/dsh-goal-round-driver':
         specifier: workspace:*
         version: link:../../goal/goal-round-driver
+      '@deepseek-ai/dsh-mission-continuity':
+        specifier: workspace:*
+        version: link:../../mission/mission-continuity
       '@deepseek-ai/dsh-hmr':
         specifier: workspace:*
         version: link:../../boot/hmr

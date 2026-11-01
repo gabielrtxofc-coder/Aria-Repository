@@ -321,6 +321,22 @@
     - id: goal-round-driver
       name: '@deepseek-ai/dsh-goal-round-driver'
 
+    # Mission continuity owns durable mission records and the automatic
+    # recovery sweep: after a restart it resumes interrupted missions from the
+    # session log without waiting for a new user message, and never bypasses an
+    # approval the mission is still waiting for. Mission state lives in the
+    # session log; the storage domain holds only the discovery index.
+    - id: mission-continuity
+      name: '@deepseek-ai/dsh-mission-continuity'
+
+    # Recovery never picks a provider or a model: it asks the composition how
+    # to compose the resumed Agent. This row answers with the host's own default
+    # model selection, the same one entry points use for a new Agent. A profile
+    # that wants a different composition registers its own listener later and
+    # its answer wins.
+    - id: mission-default-agent-plan
+      name: '@deepseek-ai/dsh-mission-continuity/default-agent-plan'
+
     - id: command-goal
       name: '@deepseek-ai/dsh-command-goal'
 
