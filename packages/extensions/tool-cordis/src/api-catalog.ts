@@ -1560,6 +1560,99 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'missions',
+    summary: 'Mission service (`ctx.missions`).',
+    description: 'Mission service (`ctx.missions`). Mission state lives in the owning session log; the durable storage domain holds only the discovery index a later process start reads, and that index is always reconciled against the log.',
+    methods: [
+      {
+        signature: 'readonly resolved: ResolvedConfig',
+        description: 'Validated deployment configuration.',
+        parameters: [],
+      },
+      {
+        signature: 'readonly ledger: RecoveryLedger',
+        description: 'Durable discovery index shared with the supervisor.',
+        parameters: [],
+      },
+      {
+        signature: 'readonly supervisor: MissionSupervisor',
+        description: 'Autonomous recovery driver for the missions this service records.',
+        parameters: [],
+      },
+      {
+        signature: 'get(agent: Agent): MissionView | undefined',
+        description: 'Read the current mission for one exact live agent.',
+        parameters: [{ name: 'agent', description: 'owning live agent.' }],
+        returns: 'a fresh view, or `undefined` when no mission is current.',
+        throws: ['{@link MissionError} when the agent is not the registry\'s live instance, or when the session\'s mission history failed strict replay.'],
+      },
+      {
+        signature: 'uncertainOperations(agent: Agent): readonly UncertainOperation[]',
+        description: 'Recorded calls whose committed outcome is unknown, oldest first.',
+        parameters: [{ name: 'agent', description: 'owning live agent.' }],
+        returns: 'bounded call identities for recovery diagnostics.',
+      },
+      {
+        signature: 'plan(agent: Agent): readonly RecoveryNoticeStep[]',
+        description: 'Current plan entries from the todo projection, in plan order.',
+        parameters: [{ name: 'agent', description: 'owning live agent.' }],
+        returns: 'plan entries, empty when no plan owner is composed for the session.',
+      },
+      {
+        signature: 'async start(agent: Agent, request: StartMissionRequest): Promise<MissionView>',
+        description: 'Start one mission and the durable objective it carries. The discovery row is written before the mission change, so a later process start can find the mission; a rejected row write fails the start instead of leaving work that nothing can recover.',
+        parameters: [{ name: 'agent', description: 'owning live agent.' }, { name: 'request', description: 'objective, completion criteria, and optional budgets.' }],
+        returns: 'the created mission view.',
+        throws: ['{@link MissionError} on invalid input, an existing mission, or a rejected durable write.'],
+      },
+      {
+        signature: 'async checkpoint(agent: Agent, ref: MissionRef): Promise<MissionView>',
+        description: 'Record a durable checkpoint of the mission\'s progress: the session prefix up to the appended event is flushed before the call resolves, so a later process start resumes after completed work instead of repeating it.',
+        parameters: [{ name: 'agent', description: 'owning live agent.' }, { name: 'ref', description: 'expected current revision.' }],
+        returns: 'the checkpointed view.',
+        throws: ['{@link MissionError} on a stale ref or a rejected flush.'],
+      },
+      {
+        signature: 'async recordAttempt( agent: Agent, ref: MissionRef, input: { readonly interruption: MissionInterruption }, ): Promise<MissionView>',
+        description: 'Consume one recovery attempt and record why recovery is taking over. The appended record and the work it authorizes are flushed before this resolves, so a rejected flush fails the attempt instead of running work the durable log cannot justify.',
+        parameters: [{ name: 'agent', description: 'owning live agent.' }, { name: 'ref', description: 'expected current revision.' }, { name: 'input', description: 'the interruption cause and optional bounded detail.' }],
+        returns: 'the updated view with the consumed attempt.',
+        throws: ['{@link MissionError} on a stale ref, a disabled policy, an exhausted budget, or a rejected flush.'],
+      },
+      {
+        signature: 'async authorize(agent: Agent, ref: MissionRef, authorization: MissionAuthorization): Promise<MissionView>',
+        description: 'Record pending human authorization. Autonomous recovery stops claiming the mission until resume records the decision, so recovery never substitutes for the approval the approval seam owns.',
+        parameters: [{ name: 'agent', description: 'owning live agent.' }, { name: 'ref', description: 'expected current revision.' }, { name: 'authorization', description: 'policy-owned code and explanation.' }],
+        returns: 'the updated view.',
+      },
+      {
+        signature: 'async resume(agent: Agent, ref: MissionRef): Promise<MissionView>',
+        description: 'Clear pending human authorization after the decision was recorded, making the mission claimable again.',
+        parameters: [{ name: 'agent', description: 'owning live agent.' }, { name: 'ref', description: 'expected current revision.' }],
+        returns: 'the updated view.',
+        throws: ['{@link MissionError} when no authorization is pending.'],
+      },
+      {
+        signature: 'async clear(agent: Agent, ref: MissionRef): Promise<MissionRef>',
+        description: 'Clear the current mission, retaining a durable tombstone, and remove its discovery row. The linked objective is deliberately untouched: releasing the continuity commitment is not completing the work.',
+        parameters: [{ name: 'agent', description: 'owning live agent.' }, { name: 'ref', description: 'expected current revision.' }],
+        returns: 'the tombstone ref, one revision past the cleared record.',
+      },
+      {
+        signature: 'async sweep(): Promise<MissionSweepReport>',
+        description: 'Recover every armed mission the durable index lists, then report what happened. Calls are serialized, so two sweeps never claim one mission twice.',
+        parameters: [],
+        returns: 'the sweep report; per-mission failures are reported, never thrown.',
+      },
+      {
+        signature: 'rowState(current: MissionSnapshot): \'armed\' | \'held\'',
+        description: 'Standing index state for one durable record: `armed` only while autonomous recovery may claim it without human action.',
+        parameters: [{ name: 'current', description: 'durable mission record.' }],
+        returns: 'the row state the record justifies.',
+      },
+    ],
+  },
+  {
     key: 'officeToPdf',
     summary: 'A provider lifetime owns all converters, queued calls, and temporary files.',
     description: 'A provider lifetime owns all converters, queued calls, and temporary files.',
@@ -4258,6 +4351,22 @@ export const EVENT_API: readonly EventApiEntry[] = [
     parameters: [{ name: 'options', description: 'the full request. A LOOP-built request carries the process-local {@link markAgentLoopRequest} identity and arrives deep-frozen (mutation throws): its content is a pure function of the session log (the reconstructability Agent Note), so listeners read it, never rewrite it. Hand-built calls do not carry that marker; callers own their request inputs and must keep them unchanged until the stream settles.' }],
   },
   {
+    name: 'mission/agent-setup',
+    mode: 'waterfall',
+    signature: '\'mission/agent-setup\'( payload: MissionAgentSetupRequest, next: (request: MissionAgentSetupRequest) => Promise<MissionAgentSetupPlan>, ): Promise<MissionAgentSetupPlan>',
+    summary: 'Decide how mission recovery composes the Agent that will continue a persisted session.',
+    description: 'Decide how mission recovery composes the Agent that will continue a persisted session. The deployment supplies provider, model, and any session-scoped capability setup; recovery never invents them. Listeners must delegate through `next` and merge into its result. A composition without a listener resumes the durable log with no options, which fails loud on the first request — recovery documents that as a deployment requirement rather than guessing a route.',
+    parameters: [{ name: 'payload', description: '.agentOptions - options recovery would otherwise pass unchanged.' }, { name: 'next', description: 'delegation to the remaining listeners and the default plan.' }],
+  },
+  {
+    name: 'mission/changed',
+    mode: 'emit',
+    signature: '\'mission/changed\'(this: import(\'@deepseek-ai/dsh-scope\').Scoped<Agent>, payload: { agent: Agent; change: MissionChanged }): void',
+    summary: 'Mission mutation accepted by one live agent.',
+    description: 'Mission mutation accepted by one live agent. The matching `mission/change` session event has already committed. Listener failures are contained. Scope-filtered dispatch (`@deepseek-ai/dsh-scope`): agent-scoped listeners receive only that agent.',
+    parameters: [{ name: 'payload', description: '.change - fresh current view or clear tombstone.' }],
+  },
+  {
     name: 'permission-presets/catalog-changed',
     mode: 'emit',
     signature: '\'permission-presets/catalog-changed\'(): void',
@@ -6002,6 +6111,70 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface MessageSourceMap {\n    user: {\n        kind: \'user\';\n    };\n    model: ModelMessageSource;\n    tool: ToolMessageSource;\n    \'system-prompt\': SystemPromptMessageSource;\n}',
   },
   {
+    name: 'MissionAgentSetupPlan',
+    declaration: 'export interface MissionAgentSetupPlan {\n    readonly agentOptions?: AgentOptions | undefined;\n    readonly setup?: AgentSetup | undefined;\n}',
+  },
+  {
+    name: 'MissionAgentSetupRequest',
+    declaration: 'export interface MissionAgentSetupRequest {\n    readonly sessionId: SessionId;\n    readonly agentOptions?: AgentOptions | undefined;\n}',
+  },
+  {
+    name: 'MissionAuthorization',
+    declaration: 'export interface MissionAuthorization {\n    readonly code: string;\n    readonly message: string;\n}',
+  },
+  {
+    name: 'MissionChanged',
+    declaration: 'export interface MissionChanged {\n    readonly operation: MissionChangeOperation;\n    readonly ref: MissionRef;\n    readonly mission?: MissionView;\n}',
+  },
+  {
+    name: 'MissionChangeOperation',
+    declaration: 'export type MissionChangeOperation = \'start\' | \'checkpoint\' | \'attempt\' | \'authorize\' | \'resume\' | \'clear\';',
+  },
+  {
+    name: 'MissionCheckpoint',
+    declaration: 'export interface MissionCheckpoint {\n    readonly seq: number;\n    readonly at: number;\n}',
+  },
+  {
+    name: 'MissionId',
+    declaration: 'export type MissionId = Branded<\'MissionId\'>;',
+  },
+  {
+    name: 'MissionInterruption',
+    declaration: 'export interface MissionInterruption {\n    readonly kind: MissionInterruptionKind;\n    readonly at: number;\n    readonly detail?: string | undefined;\n}',
+  },
+  {
+    name: 'MissionInterruptionKind',
+    declaration: 'export type MissionInterruptionKind = \'process-restart\' | \'request-failed\' | \'turn-aborted\' | \'unknown\';',
+  },
+  {
+    name: 'MissionRecoveryPolicy',
+    declaration: 'export type MissionRecoveryPolicy = \'enabled\' | \'disabled\';',
+  },
+  {
+    name: 'MissionRef',
+    declaration: 'export interface MissionRef {\n    readonly id: MissionId;\n    readonly revision: number;\n}',
+  },
+  {
+    name: 'MissionService',
+    declaration: 'export class MissionService extends Service {\n    static inject;\n    static Config: z<Config>;\n    readonly resolved: ResolvedConfig;\n    readonly ledger: RecoveryLedger;\n    readonly supervisor: MissionSupervisor;\n    constructor(ctx: Context, config: Config = {});\n    async [Service.init](): Promise<void>;\n    get(agent: Agent): MissionView | undefined;\n    uncertainOperations(agent: Agent): readonly UncertainOperation[];\n    plan(agent: Agent): readonly RecoveryNoticeStep[];\n    async start(agent: Agent, request: StartMissionRequest): Promise<MissionView>;\n    async checkpoint(agent: Agent, ref: MissionRef): Promise<MissionView>;\n    async recordAttempt(agent: Agent, ref: MissionRef, input: {\n        readonly interruption: MissionInterruption;\n    }): Promise<MissionView>;\n    async authorize(agent: Agent, ref: MissionRef, authorization: MissionAuthorization): Promise<MissionView>;\n    async resume(agent: Agent, ref: MissionRef): Promise<MissionView>;\n    async clear(agent: Agent, ref: MissionRef): Promise<MissionRef>;\n    async sweep(): Promise<MissionSweepReport>;\n    rowState(current: MissionSnapshot): \'armed\' | \'held\';\n}',
+  },
+  {
+    name: 'MissionSnapshot',
+    declaration: 'export interface MissionSnapshot extends MissionRef {\n    readonly goal: GoalRef;\n    readonly completionCriteria: readonly string[];\n    readonly recovery: MissionRecoveryPolicy;\n    readonly maxRecoveryAttempts: number;\n    readonly attempts: number;\n    readonly interruption?: MissionInterruption | undefined;\n    readonly checkpoint?: MissionCheckpoint | undefined;\n    readonly authorization?: MissionAuthorization | undefined;\n    readonly createdAt: number;\n    readonly updatedAt: number;\n}',
+  },
+  {
+    name: 'MissionSupervisor',
+    declaration: 'export class MissionSupervisor {\n    constructor(private readonly ctx: Context, private readonly service: MissionService, private readonly config: ResolvedConfig);\n    async start(): Promise<void>;\n    async sweep(): Promise<MissionSweepReport>;\n    release(sessionId: SessionId): void;\n    async dispose(): Promise<void>;\n}',
+  },
+  {
+    name: 'MissionSweepReport',
+    declaration: 'export interface MissionSweepReport {\n    readonly considered: number;\n    readonly resumed: number;\n    readonly held: number;\n    readonly settled: number;\n    readonly exhausted: number;\n    readonly failed: number;\n}',
+  },
+  {
+    name: 'MissionView',
+    declaration: 'export interface MissionView extends MissionSnapshot {\n    readonly settled: boolean;\n}',
+  },
+  {
     name: 'ModDefinition',
     declaration: 'export interface ModDefinition {\n    readonly name: string;\n    readonly version?: string;\n    readonly root?: string;\n    readonly options?: PluginOptions;\n    readonly register: ModRegister;\n}',
   },
@@ -6428,6 +6601,18 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'ReasoningEffortId',
     declaration: 'export type ReasoningEffortId = Branded<\'ReasoningEffortId\'>;',
+  },
+  {
+    name: 'RecoveryLedger',
+    declaration: 'export class RecoveryLedger {\n    constructor(ctx: Context);\n    async open(): Promise<void>;\n    async list(): Promise<RecoveryRecord[]>;\n    async put(record: RecoveryRecord): Promise<void>;\n    async delete(missionId: RecoveryRecord[\'missionId\']): Promise<void>;\n    async close(): Promise<void>;\n}',
+  },
+  {
+    name: 'RecoveryNoticeStep',
+    declaration: 'export interface RecoveryNoticeStep {\n    readonly content: string;\n    readonly status: \'pending\' | \'in_progress\' | \'completed\';\n}',
+  },
+  {
+    name: 'RecoveryRecord',
+    declaration: 'export type RecoveryRecord = z.infer<typeof recoveryRecordSchema>;',
   },
   {
     name: 'RecurringScheduleRecord',
@@ -7506,6 +7691,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type SshStreamEndpoint = z.infer<typeof streamEndpointSchema>;',
   },
   {
+    name: 'StartMissionRequest',
+    declaration: 'export interface StartMissionRequest {\n    readonly objective: string;\n    readonly completionCriteria: readonly string[];\n    readonly maxGoalRounds?: number;\n    readonly maxRecoveryAttempts?: number;\n    readonly recovery?: MissionRecoveryPolicy;\n}',
+  },
+  {
     name: 'StorageBackend',
     declaration: 'export interface StorageBackend {\n    readonly kv?: KvFacet;\n    close(): Promise<void>;\n}',
   },
@@ -8220,6 +8409,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'UiRenderResult',
     declaration: 'export type UiRenderResult = UiNode;',
+  },
+  {
+    name: 'UncertainOperation',
+    declaration: 'export interface UncertainOperation {\n    readonly callId: string;\n    readonly name: string;\n}',
   },
   {
     name: 'UpdateTeamTaskRequest',

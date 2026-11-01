@@ -1,0 +1,34 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/mission/mission-continuity/README.md
+/:
+  en: 5917f8c1ac2b972b
+  zh: 6f1da3730f604050
+/deepseek-ai-dsh-mission-continuity:
+  en: 23c6e7494b4dc6d5
+  zh: 5e7f2b556ec302c5
+/deepseek-ai-dsh-mission-continuity/summary:
+  en: 74d9cc3ee2d5430c
+  zh: 8ad939f0a1515afc
+/deepseek-ai-dsh-mission-continuity/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: 63fd4fdd874e939c
+/deepseek-ai-dsh-mission-continuity/use-this-package:
+  en: ce4a50ece61c087b
+  zh: 21a537ae85669c8c
+/deepseek-ai-dsh-mission-continuity/understand-the-implementation:
+  en: 407aef3897f92311
+  zh: 8fda1a826e806017
+/deepseek-ai-dsh-mission-continuity/further-exploration:
+  en: f1dfdf3819f09a0b
+  zh: f2760a93d2df965e
+/deepseek-ai-dsh-mission-continuity/model-experience:
+  en: 62b60ad1e637e652
+  zh: 7bef1825c56f5b74
+/deepseek-ai-dsh-mission-continuity/known-limitations-and-deferred-work:
+  en: 9db5ed5f8d6f8e4b
+  zh: a072c8714200521f
+/deepseek-ai-dsh-mission-continuity/dev-note:
+  en: 0553891df25c52a1
+  zh: 811232ac433ad605

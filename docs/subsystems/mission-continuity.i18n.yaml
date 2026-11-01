@@ -1,0 +1,25 @@
+# Bilingual-pair consistency record for mission-continuity.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/subsystems/mission-continuity.md
+/mission-continuity:
+  en: 97eb9e4a36083b47
+  zh: 2bb09680efdac15d
+/mission-continuity/the-record:
+  en: 3ad9bda466e85853
+  zh: 5377cb36b81d4d5f
+/mission-continuity/the-discovery-index:
+  en: 230609b0965c66dd
+  zh: 8a3f898532c6b3d9
+/mission-continuity/recovery-decision-table:
+  en: 753e80af04a64055
+  zh: d9fdd6cf1cc29d9b
+/mission-continuity/the-composition-seam:
+  en: 4561d263c63b9a80
+  zh: 0a42367072b4de97
+/mission-continuity/durability:
+  en: 089a55573b8e3179
+  zh: c28ce6841165e6cb
+/mission-continuity/known-limits:
+  en: 9836b9d9ff368885
+  zh: da6d4e8f757b65c9

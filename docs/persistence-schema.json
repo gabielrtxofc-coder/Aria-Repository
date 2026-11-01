@@ -22581,7 +22581,7 @@
         "packages/mission/mission-continuity/src/domain.ts#MissionClearChangeMeta"
       ],
       "sources": [
-        "packages/mission/mission-continuity/src/domain.ts:29"
+        "packages/mission/mission-continuity/src/domain.ts:30"
       ]
     },
     {
@@ -22637,7 +22637,7 @@
       ],
       "sources": [
         "packages/goal/goal/src/types.ts:20",
-        "packages/mission/mission-continuity/src/types.ts:24"
+        "packages/mission/mission-continuity/src/types.ts:26"
       ]
     },
     {
@@ -22646,7 +22646,7 @@
         "packages/mission/mission-continuity/src/types.ts#MissionRecoveryPolicy"
       ],
       "sources": [
-        "packages/mission/mission-continuity/src/types.ts:72"
+        "packages/mission/mission-continuity/src/types.ts:74"
       ]
     },
     {
@@ -22949,7 +22949,7 @@
         "packages/mission/mission-continuity/src/types.ts#MissionInterruption"
       ],
       "sources": [
-        "packages/mission/mission-continuity/src/types.ts:39"
+        "packages/mission/mission-continuity/src/types.ts:41"
       ]
     },
     {
@@ -23059,7 +23059,7 @@
         "packages/mission/mission-continuity/src/domain.ts#MissionChangeMeta"
       ],
       "sources": [
-        "packages/mission/mission-continuity/src/domain.ts:38"
+        "packages/mission/mission-continuity/src/domain.ts:39"
       ]
     },
     {
@@ -23575,7 +23575,7 @@
         "packages/mission/mission-continuity/src/types.ts#MissionCheckpoint"
       ],
       "sources": [
-        "packages/mission/mission-continuity/src/types.ts:53"
+        "packages/mission/mission-continuity/src/types.ts:55"
       ]
     },
     {
@@ -23716,7 +23716,7 @@
         "packages/llm/llm/src/brand.ts:31",
         "packages/llm/llm/src/brand.ts:43",
         "packages/llm/llm/src/brand.ts:67",
-        "packages/mission/mission-continuity/src/types.ts:21",
+        "packages/mission/mission-continuity/src/types.ts:23",
         "packages/schedule/schedule/src/types.ts:14",
         "packages/session/session-title/src/index.ts:42",
         "packages/session/session-title/src/types.ts:17",
@@ -23864,7 +23864,7 @@
         "packages/mission/mission-continuity/src/types.ts#MissionInterruptionKind"
       ],
       "sources": [
-        "packages/mission/mission-continuity/src/types.ts:32"
+        "packages/mission/mission-continuity/src/types.ts:34"
       ]
     },
     {
@@ -24528,7 +24528,7 @@
         "packages/mission/mission-continuity/src/domain.ts#MissionMessageSource"
       ],
       "sources": [
-        "packages/mission/mission-continuity/src/domain.ts:45"
+        "packages/mission/mission-continuity/src/domain.ts:46"
       ]
     },
     {
@@ -24557,7 +24557,7 @@
       ],
       "sources": [
         "packages/goal/goal/src/types.ts:52",
-        "packages/mission/mission-continuity/src/types.ts:64"
+        "packages/mission/mission-continuity/src/types.ts:66"
       ]
     },
     {
@@ -25339,7 +25339,7 @@
         "packages/mission/mission-continuity/src/types.ts#MissionSnapshot"
       ],
       "sources": [
-        "packages/mission/mission-continuity/src/types.ts:75"
+        "packages/mission/mission-continuity/src/types.ts:77"
       ]
     },
     {
@@ -26184,7 +26184,7 @@
         "packages/mission/mission-continuity/src/domain.ts#MissionSnapshotChangeMeta"
       ],
       "sources": [
-        "packages/mission/mission-continuity/src/domain.ts:21"
+        "packages/mission/mission-continuity/src/domain.ts:22"
       ]
     },
     {

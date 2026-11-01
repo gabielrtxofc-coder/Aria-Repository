@@ -669,7 +669,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 'mission/change': MissionChangeMeta
 ```
 
-来源：[`packages/mission/mission-continuity/src/domain.ts:66`](../packages/mission/mission-continuity/src/domain.ts)
+来源：[`packages/mission/mission-continuity/src/domain.ts:67`](../packages/mission/mission-continuity/src/domain.ts)
 
 ### `model/*`
 
@@ -3521,7 +3521,7 @@ SHA-256: `5808e36c95355f0e745201b5db1b6bcec4ebf5adb75d3e82d7d59cc89635ab80`
 
 SHA-256: `84ac8c1a66ffc697262e181f42e851259eae14038c113ca329fb4700ccdb1f7c`
 
-来源：[`packages/goal/goal/src/types.ts:52`](../packages/goal/goal/src/types.ts) · [`packages/mission/mission-continuity/src/types.ts:64`](../packages/mission/mission-continuity/src/types.ts)
+来源：[`packages/goal/goal/src/types.ts:52`](../packages/goal/goal/src/types.ts) · [`packages/mission/mission-continuity/src/types.ts:66`](../packages/mission/mission-continuity/src/types.ts)
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
@@ -3617,7 +3617,7 @@ SHA-256: `b8327af7ee5767952d1300cb4f03b7fc04197ae5ba275e13981c689ff7506172`
 
 SHA-256: `0b6d718c693fdf7f06dcccb0bcbbabe78cc63514eafc62d6b2a3899735279d6f`
 
-来源：[`packages/goal/goal/src/types.ts:20`](../packages/goal/goal/src/types.ts) · [`packages/mission/mission-continuity/src/types.ts:24`](../packages/mission/mission-continuity/src/types.ts)
+来源：[`packages/goal/goal/src/types.ts:20`](../packages/goal/goal/src/types.ts) · [`packages/mission/mission-continuity/src/types.ts:26`](../packages/mission/mission-continuity/src/types.ts)
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
@@ -4254,7 +4254,7 @@ SHA-256: `aca53a8160665aa2c977ff5ce605f8cfec434fce2502f42f0d888655db48ffed`
 
 SHA-256: `207c3839abb5411096071851e4975b60de101287b6126052246377b0968d6687`
 
-来源：[`packages/mission/mission-continuity/src/domain.ts:38`](../packages/mission/mission-continuity/src/domain.ts)
+来源：[`packages/mission/mission-continuity/src/domain.ts:39`](../packages/mission/mission-continuity/src/domain.ts)
 
 | kind | form 属性 | 其他必需字段 | 完整定义 |
 |---|---|---|---|
@@ -4271,7 +4271,7 @@ SHA-256: `207c3839abb5411096071851e4975b60de101287b6126052246377b0968d6687`
 
 SHA-256: `477d4ba8148884d23f635898cccc6dbf9015d5cf9d275494a5853f1af557f4b4`
 
-来源：[`packages/mission/mission-continuity/src/types.ts:53`](../packages/mission/mission-continuity/src/types.ts)
+来源：[`packages/mission/mission-continuity/src/types.ts:55`](../packages/mission/mission-continuity/src/types.ts)
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
@@ -4288,7 +4288,7 @@ SHA-256: `477d4ba8148884d23f635898cccc6dbf9015d5cf9d275494a5853f1af557f4b4`
 
 SHA-256: `08b08f0d279a65faf5de1cfad10166c439852cba9c5294bcff07664630c5610f`
 
-来源：[`packages/mission/mission-continuity/src/domain.ts:29`](../packages/mission/mission-continuity/src/domain.ts)
+来源：[`packages/mission/mission-continuity/src/domain.ts:30`](../packages/mission/mission-continuity/src/domain.ts)
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
@@ -4308,7 +4308,7 @@ SHA-256: `08b08f0d279a65faf5de1cfad10166c439852cba9c5294bcff07664630c5610f`
 
 SHA-256: `1bec864780fd2ef33ac98ba285a88ad662585d9de318b788efb278ddc4bbf7ae`
 
-来源：[`packages/mission/mission-continuity/src/types.ts:39`](../packages/mission/mission-continuity/src/types.ts)
+来源：[`packages/mission/mission-continuity/src/types.ts:41`](../packages/mission/mission-continuity/src/types.ts)
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
@@ -4326,7 +4326,7 @@ SHA-256: `1bec864780fd2ef33ac98ba285a88ad662585d9de318b788efb278ddc4bbf7ae`
 
 SHA-256: `55b15dd79ffd7fa61786bda336d3e08e1b24fe12d1a3e1e7c3a77cb39327700d`
 
-来源：[`packages/mission/mission-continuity/src/types.ts:32`](../packages/mission/mission-continuity/src/types.ts)
+来源：[`packages/mission/mission-continuity/src/types.ts:34`](../packages/mission/mission-continuity/src/types.ts)
 
 以下类型之一：
 
@@ -4345,7 +4345,7 @@ SHA-256: `55b15dd79ffd7fa61786bda336d3e08e1b24fe12d1a3e1e7c3a77cb39327700d`
 
 SHA-256: `83d8f0eca1b8b6ae68d205cd5ffa689e9a1df1c7b6a558a93a6449627971412b`
 
-来源：[`packages/mission/mission-continuity/src/domain.ts:45`](../packages/mission/mission-continuity/src/domain.ts)
+来源：[`packages/mission/mission-continuity/src/domain.ts:46`](../packages/mission/mission-continuity/src/domain.ts)
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
@@ -4364,7 +4364,7 @@ SHA-256: `83d8f0eca1b8b6ae68d205cd5ffa689e9a1df1c7b6a558a93a6449627971412b`
 
 SHA-256: `0b8806b6e73c08f8a8aa9dfd85587ca6bba02eccf51e69061093ee1f5f81b4d8`
 
-来源：[`packages/mission/mission-continuity/src/types.ts:72`](../packages/mission/mission-continuity/src/types.ts)
+来源：[`packages/mission/mission-continuity/src/types.ts:74`](../packages/mission/mission-continuity/src/types.ts)
 
 以下类型之一：
 
@@ -4381,7 +4381,7 @@ SHA-256: `0b8806b6e73c08f8a8aa9dfd85587ca6bba02eccf51e69061093ee1f5f81b4d8`
 
 SHA-256: `b59e16be20fb39aa3a7c8f730e4a36152c3248e3a9ed1542a2434384af473291`
 
-来源：[`packages/mission/mission-continuity/src/types.ts:75`](../packages/mission/mission-continuity/src/types.ts)
+来源：[`packages/mission/mission-continuity/src/types.ts:77`](../packages/mission/mission-continuity/src/types.ts)
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
@@ -4408,7 +4408,7 @@ SHA-256: `b59e16be20fb39aa3a7c8f730e4a36152c3248e3a9ed1542a2434384af473291`
 
 SHA-256: `f9ce9f05f42fbe1eb277ba06937f6357644e79a0e5ebf97faababb826838be66`
 
-来源：[`packages/mission/mission-continuity/src/domain.ts:21`](../packages/mission/mission-continuity/src/domain.ts)
+来源：[`packages/mission/mission-continuity/src/domain.ts:22`](../packages/mission/mission-continuity/src/domain.ts)
 
 | 属性 | 存在性 | 类型 |
 |---|---|---|
@@ -5676,7 +5676,7 @@ SHA-256: `5d03ba38734809bcbd2a55221bd938b3b3fc34b49bb686c6113e9e4931e3aa78`
 
 SHA-256: `4cd48f3e5108bd6ebedf7301c3638839b8b2b9db8dbd493974177fbdeb91a01b`
 
-来源：[`packages/api/session-controller/src/types.ts:403`](../packages/api/session-controller/src/types.ts) · [`packages/attachment/attachment/src/brand.ts:6`](../packages/attachment/attachment/src/brand.ts) · [`packages/compaction/compaction/src/brand.ts:4`](../packages/compaction/compaction/src/brand.ts) · [`packages/core/session/src/types.ts:20`](../packages/core/session/src/types.ts) · [`packages/experimental/agent-team/src/types.ts:21`](../packages/experimental/agent-team/src/types.ts) · [`packages/experimental/agent-team/src/types.ts:33`](../packages/experimental/agent-team/src/types.ts) · [`packages/experimental/agent-team/src/types.ts:9`](../packages/experimental/agent-team/src/types.ts) · [`packages/experimental/webhook/src/brand.ts:12`](../packages/experimental/webhook/src/brand.ts) · [`packages/experimental/webhook/src/brand.ts:6`](../packages/experimental/webhook/src/brand.ts) · [`packages/experimental/webhook/src/brand.ts:9`](../packages/experimental/webhook/src/brand.ts) · [`packages/feedback/message-feedback/src/types.ts:14`](../packages/feedback/message-feedback/src/types.ts) · [`packages/goal/goal/src/types.ts:17`](../packages/goal/goal/src/types.ts) · [`packages/interaction/commands/src/brand.ts:31`](../packages/interaction/commands/src/brand.ts) · [`packages/interaction/user-approval/src/types.ts:17`](../packages/interaction/user-approval/src/types.ts) · [`packages/llm/llm-retry/src/brand.ts:4`](../packages/llm/llm-retry/src/brand.ts) · [`packages/llm/llm/src/brand.ts:16`](../packages/llm/llm/src/brand.ts) · [`packages/llm/llm/src/brand.ts:31`](../packages/llm/llm/src/brand.ts) · [`packages/llm/llm/src/brand.ts:43`](../packages/llm/llm/src/brand.ts) · [`packages/llm/llm/src/brand.ts:67`](../packages/llm/llm/src/brand.ts) · [`packages/mission/mission-continuity/src/types.ts:21`](../packages/mission/mission-continuity/src/types.ts) · [`packages/schedule/schedule/src/types.ts:14`](../packages/schedule/schedule/src/types.ts) · [`packages/session/session-title/src/index.ts:42`](../packages/session/session-title/src/index.ts) · [`packages/session/session-title/src/types.ts:17`](../packages/session/session-title/src/types.ts) · [`packages/workflow/workflow/src/types.ts:13`](../packages/workflow/workflow/src/types.ts)
+来源：[`packages/api/session-controller/src/types.ts:403`](../packages/api/session-controller/src/types.ts) · [`packages/attachment/attachment/src/brand.ts:6`](../packages/attachment/attachment/src/brand.ts) · [`packages/compaction/compaction/src/brand.ts:4`](../packages/compaction/compaction/src/brand.ts) · [`packages/core/session/src/types.ts:20`](../packages/core/session/src/types.ts) · [`packages/experimental/agent-team/src/types.ts:21`](../packages/experimental/agent-team/src/types.ts) · [`packages/experimental/agent-team/src/types.ts:33`](../packages/experimental/agent-team/src/types.ts) · [`packages/experimental/agent-team/src/types.ts:9`](../packages/experimental/agent-team/src/types.ts) · [`packages/experimental/webhook/src/brand.ts:12`](../packages/experimental/webhook/src/brand.ts) · [`packages/experimental/webhook/src/brand.ts:6`](../packages/experimental/webhook/src/brand.ts) · [`packages/experimental/webhook/src/brand.ts:9`](../packages/experimental/webhook/src/brand.ts) · [`packages/feedback/message-feedback/src/types.ts:14`](../packages/feedback/message-feedback/src/types.ts) · [`packages/goal/goal/src/types.ts:17`](../packages/goal/goal/src/types.ts) · [`packages/interaction/commands/src/brand.ts:31`](../packages/interaction/commands/src/brand.ts) · [`packages/interaction/user-approval/src/types.ts:17`](../packages/interaction/user-approval/src/types.ts) · [`packages/llm/llm-retry/src/brand.ts:4`](../packages/llm/llm-retry/src/brand.ts) · [`packages/llm/llm/src/brand.ts:16`](../packages/llm/llm/src/brand.ts) · [`packages/llm/llm/src/brand.ts:31`](../packages/llm/llm/src/brand.ts) · [`packages/llm/llm/src/brand.ts:43`](../packages/llm/llm/src/brand.ts) · [`packages/llm/llm/src/brand.ts:67`](../packages/llm/llm/src/brand.ts) · [`packages/mission/mission-continuity/src/types.ts:23`](../packages/mission/mission-continuity/src/types.ts) · [`packages/schedule/schedule/src/types.ts:14`](../packages/schedule/schedule/src/types.ts) · [`packages/session/session-title/src/index.ts:42`](../packages/session/session-title/src/index.ts) · [`packages/session/session-title/src/types.ts:17`](../packages/session/session-title/src/types.ts) · [`packages/workflow/workflow/src/types.ts:13`](../packages/workflow/workflow/src/types.ts)
 
 `string`
 

@@ -126,6 +126,10 @@ flowchart LR
   cfg --> plugin_dsh_base_goal
   plugin_dsh_base_goal_round_driver["goal-round-driver<br/>@deepseek-ai/dsh-goal-round-driver"]
   cfg --> plugin_dsh_base_goal_round_driver
+  plugin_dsh_base_mission_continuity["mission-continuity<br/>@deepseek-ai/dsh-mission-continuity"]
+  cfg --> plugin_dsh_base_mission_continuity
+  plugin_dsh_base_mission_default_agent_plan["mission-default-agent-plan<br/>@deepseek-ai/dsh-mission-continuity/default-agent-plan"]
+  cfg --> plugin_dsh_base_mission_default_agent_plan
   plugin_dsh_base_command_goal["command-goal<br/>@deepseek-ai/dsh-command-goal"]
   cfg --> plugin_dsh_base_command_goal
   plugin_dsh_base_plan_mode["plan-mode<br/>@deepseek-ai/dsh-plan-mode"]
@@ -259,6 +263,8 @@ flowchart LR
 | `command-feedback` | `@deepseek-ai/dsh-command-feedback` |
 | `goal` | `@deepseek-ai/dsh-goal` |
 | `goal-round-driver` | `@deepseek-ai/dsh-goal-round-driver` |
+| `mission-continuity` | `@deepseek-ai/dsh-mission-continuity` |
+| `mission-default-agent-plan` | `@deepseek-ai/dsh-mission-continuity/default-agent-plan` |
 | `command-goal` | `@deepseek-ai/dsh-command-goal` |
 | `plan-mode` | `@deepseek-ai/dsh-plan-mode` |
 | `token-meter` | `@deepseek-ai/dsh-token-meter` |
