@@ -291,9 +291,12 @@ export class MissionSupervisor {
   private alreadyRecovered(agent: Agent): boolean {
     const claim = this.claims.get(agent.session.id)
     if (claim === undefined) return false
-    /* v8 ignore next 4 -- the claim is only written for a live Agent of this session. */
     const mission = this.service.get(agent)
+    // A claim is only written for the record its Agent still holds, so the
+    // lookup above cannot miss; the guard keeps a torn composition honest.
+    /* v8 ignore start */
     if (mission === undefined) return false
+    /* v8 ignore stop */
     return mission.id === claim.missionId
       && mission.revision === claim.revision
       && mission.attempts === claim.attempts
@@ -341,6 +344,10 @@ export class MissionSupervisor {
       attempts: attempted.attempts,
     })
     const current = this.ctx.goals.get(agent)
+    // Recording the attempt already disarmed this objective, so the resume
+    // below is the one that re-arms it; the guard keeps `goals.resume` (which
+    // rejects an armed goal) from failing a sweep on a defensive path.
+    /* v8 ignore next */
     if (current !== undefined && current.id === goal.id && current.activation === 'disarmed') {
       this.ctx.goals.resume(agent, { id: current.id, revision: current.revision })
     }

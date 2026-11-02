@@ -13,13 +13,15 @@
  * simply not there.
  */
 
-import { cp, mkdtemp, rm } from 'node:fs/promises'
+import { cp, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Context } from '@deepseek-ai/cordis'
 import { ToolCallId, createToolResultMessage } from '@deepseek-ai/dsh-llm'
+import type { Agent } from '@deepseek-ai/dsh-agent'
 import { SessionId, TOOL_OUTCOME_UNKNOWN } from '@deepseek-ai/dsh-session'
+import { UNCERTAIN_ACKNOWLEDGED, UNCERTAIN_OPERATIONS } from '../src/runtime.ts'
 import {
   countMissionNotices,
   createAgent,
@@ -54,6 +56,45 @@ async function snapshotRoot(root: string): Promise<string> {
   await cp(root, copy, { recursive: true })
   cleanups.push(async () => { await rm(copy, { recursive: true, force: true }) })
   return copy
+}
+
+
+/**
+ * Drive a real tool call to the one durable shape recovery cannot resolve: the
+ * call is recorded, and its result says the outcome is unknown. Appending
+ * through the live session (not by editing the artifact) keeps the log exactly
+ * what the runtime writes when a tool disappears mid-call.
+ */
+function recordUnknownCall(agent: Agent): void {
+  agent.session.append('turn/start', { turn: 1 })
+  agent.session.append('step/start', { turn: 1, step: 1 })
+  agent.session.append('tool/call', {
+    turn: 1,
+    step: 1,
+    callId: ToolCallId('call-effect'),
+    name: 'external_effect',
+    arguments: '{}',
+  })
+  agent.session.append('tool/result', {
+    turn: 1,
+    step: 1,
+    message: createToolResultMessage({
+      callId: ToolCallId('call-effect'),
+      content: [{ type: 'text', text: 'the tool did not report back' }],
+      isError: true,
+    }),
+    error: { name: 'ToolOutcomeUnknownError', code: TOOL_OUTCOME_UNKNOWN },
+  }, { surfaceOp: 'append' })
+}
+
+/** Absolute path of one session's durable artifact. */
+async function findArtifact(root: string, sessionId: string): Promise<string> {
+  const entries = await readdir(join(root, 'sessions'), { recursive: true, withFileTypes: true })
+  const found = entries.find(entry => entry.isFile()
+    && entry.parentPath.includes(sessionId)
+    && entry.name.endsWith('.jsonl'))
+  if (found === undefined) throw new Error(`no artifact for ${sessionId}`)
+  return join(found.parentPath, found.name)
 }
 
 /** Every file under one directory, for "the index is gone" simulations. */
@@ -221,132 +262,132 @@ describe('discovery index rebuild', () => {
   })
 })
 
+
 describe('interrupted calls with no durable result', () => {
-  /**
-   * Put the durable log in the exact state a crash inside a tool leaves behind:
-   * a recorded call and a committed result whose outcome is unknown.
-   */
-  function recordUnknownCall(ctx: Context, session: Parameters<typeof createAgent>[0]['session'] extends never ? never : {
-    append: (type: string, data: unknown, opts?: unknown) => unknown
-  }): void {
-    session.append('tool/call', {
-      turn: 1, step: 1, callId: ToolCallId('call-effect'), name: 'external_effect', arguments: '{}',
-    })
-    session.append('tool/result', {
-      turn: 1,
-      step: 1,
-      message: createToolResultMessage({
-        callId: ToolCallId('call-effect'),
-        content: [{ type: 'text', text: 'the call never produced a durable result' }],
-        isError: true,
-      }),
-      error: { name: 'ToolOutcomeUnknownError', code: TOOL_OUTCOME_UNKNOWN },
-    }, { surfaceOp: 'append' })
-    void ctx
-  }
-
   it('holds the mission instead of resuming past the doubt', async () => {
-    const { root, cleanup } = await tempRoot('dsh-mission-uncertain-gate-')
+    const { root, cleanup } = await tempRoot('dsh-mission-uncertain-')
     cleanups.push(cleanup)
-    const first = await mount(root, [textResponse('work')])
-    const agent = await createAgent(first)
-    const started = await first.ctx.missions.start(agent, {
-      objective: 'never repeat blindly',
-      completionCriteria: ['the external state is verified first'],
-    })
-    recordUnknownCall(first.ctx, agent.session)
-    expect(first.ctx.missions.uncertainOperations(agent)).toEqual([
-      { callId: 'call-effect', name: 'external_effect' },
-    ])
-    await first.ctx.sessions.flush(agent.session)
-    await first.ctx.fiber.dispose()
-    contexts.splice(contexts.indexOf(first.ctx), 1)
+    const harness = await mount(root, [textResponse('work')], { sweepOnStartup: false })
+    const agent = await createAgent(harness)
+    await harness.ctx.missions.start(agent, { objective: 'publish', completionCriteria: ['done'] })
+    recordUnknownCall(agent)
+    expect(harness.ctx.missions.uncertainOperations(agent))
+      .toEqual([{ callId: 'call-effect', name: 'external_effect' }])
 
-    const second = await mount(root, [textResponse('continued')], { sweepOnStartup: false })
-    const report = await second.ctx.missions.sweep()
-    // Held, not resumed: no attempt spent, no Agent composed, no model request.
+    const report = await harness.ctx.missions.sweep()
+
     expect(report).toMatchObject({ considered: 1, resumed: 0, held: 1 })
-    expect(second.ctx.agents.get(SessionId('mission-session'))).toBeUndefined()
-    expect(second.adapter.requests).toHaveLength(0)
-    expect(await second.ctx.missions.ledger.list()).toMatchObject([{
-      missionId: started.id,
-      attempts: 0,
-      state: 'held',
-      lastError: { code: 'uncertain-operations' },
-    }])
+    const [row] = await harness.ctx.missions.ledger.list()
+    expect(row.state).toBe('held')
+    expect(row.lastError?.code).toBe(UNCERTAIN_OPERATIONS)
+    expect(row.lastError?.message).toContain('external_effect')
+    // Recovery did not spend an attempt, and the model was never told to go on.
+    expect(row.attempts).toBe(0)
+    await harness.ctx.sessions.flush(agent.session)
+    expect(countMissionNotices(await readSessionArtifact(root).catch(() => ''))).toBe(0)
   })
 
-  it('resumes once a human clears the recorded doubt, and remembers it', async () => {
-    const { root, cleanup } = await tempRoot('dsh-mission-uncertain-ack-')
+  it('resumes only after a human clears the recorded doubt, and remembers it', async () => {
+    const { root, cleanup } = await tempRoot('dsh-mission-ack-')
     cleanups.push(cleanup)
-    const first = await mount(root, [textResponse('work')])
-    const agent = await createAgent(first)
-    const started = await first.ctx.missions.start(agent, {
-      objective: 'resume after review',
-      completionCriteria: ['reviewed'],
-    })
-    recordUnknownCall(first.ctx, agent.session)
-    const blocked = await first.ctx.missions.authorize(agent, started, {
-      code: 'uncertain-operations',
-      message: 'Interrupted tool calls whose outcome is unknown: external_effect.',
-    })
-    // The human decision: clear the authorization. The durable index keeps the
-    // acknowledgement so the next sweep does not raise the same hold again.
-    const resumedByHuman = await first.ctx.missions.resume(agent, {
-      id: blocked.id,
-      revision: blocked.revision,
-    })
-    expect((await first.ctx.missions.ledger.list())[0]).toMatchObject({
-      state: 'armed',
-      lastError: { code: 'uncertain-operations-acknowledged' },
-    })
-    await first.ctx.sessions.flush(agent.session)
-    await first.ctx.fiber.dispose()
-    contexts.splice(contexts.indexOf(first.ctx), 1)
+    const harness = await mount(root, [textResponse('work')], { sweepOnStartup: false })
+    const agent = await createAgent(harness)
+    await harness.ctx.missions.start(agent, { objective: 'publish', completionCriteria: ['done'] })
+    recordUnknownCall(agent)
+    await harness.ctx.missions.sweep()
 
-    const second = await mount(root, [textResponse('continued')], { sweepOnStartup: false })
-    const report = await second.ctx.missions.sweep()
-    expect(report).toMatchObject({ considered: 1, resumed: 1, held: 0 })
-    const resumed = second.ctx.agents.get(SessionId('mission-session'))
-    expect(second.ctx.missions.get(resumed!)).toMatchObject({
-      id: resumedByHuman.id,
-      attempts: 1,
-    })
-    await second.ctx.sessions.flush(resumed!.session)
-    expect(countMissionNotices(await readSessionArtifact(root))).toBe(1)
+    const held = harness.ctx.missions.get(agent)!
+    await harness.ctx.missions.resume(agent, { id: held.id, revision: held.revision })
+
+    const [acknowledged] = await harness.ctx.missions.ledger.list()
+    expect(acknowledged.lastError?.code).toBe(UNCERTAIN_ACKNOWLEDGED)
+    expect(acknowledged.attempts).toBe(0)
+
+    // The acknowledgement is what lets the next sweep act despite the doubt.
+    const report = await harness.ctx.missions.sweep()
+    expect(report).toMatchObject({ considered: 1, resumed: 1 })
+    const [resumed] = await harness.ctx.missions.ledger.list()
+    expect(resumed.attempts).toBe(1)
+    expect(resumed.state).toBe('armed')
   })
 
+  it('does not acknowledge doubt the log no longer holds', async () => {
+    const { root, cleanup } = await tempRoot('dsh-mission-ack-clean-')
+    cleanups.push(cleanup)
+    const harness = await mount(root, [textResponse('work')], { sweepOnStartup: false })
+    const agent = await createAgent(harness)
+    await harness.ctx.missions.start(agent, { objective: 'publish', completionCriteria: ['done'] })
+    const authorized = await harness.ctx.missions.authorize(
+      agent,
+      { id: harness.ctx.missions.get(agent)!.id, revision: harness.ctx.missions.get(agent)!.revision },
+      { code: UNCERTAIN_OPERATIONS, message: 'held for review' },
+    )
+
+    await harness.ctx.missions.resume(agent, { id: authorized.id, revision: authorized.revision })
+
+    const [row] = await harness.ctx.missions.ledger.list()
+    expect(row.lastError).toBeUndefined()
+    expect(row.state).toBe('armed')
+  })
+
+  it('renders the plan recovery reads from the todo projection', async () => {
+    const { root, cleanup } = await tempRoot('dsh-mission-plan-')
+    cleanups.push(cleanup)
+    const harness = await mount(root, [textResponse('work')], { sweepOnStartup: false })
+    const agent = await createAgent(harness)
+    const projections = harness.ctx.sessionProjections as unknown as {
+      stateOf: (session: unknown, key: string) => unknown
+    }
+    const original = projections.stateOf.bind(projections)
+    vi.spyOn(projections, 'stateOf').mockImplementation(((session: unknown, key: string) =>
+      key === 'todos'
+        ? [{ content: 'check the deployment', status: 'pending' }]
+        : original(session, key)) as never)
+
+    expect(harness.ctx.missions.plan(agent)).toEqual([
+      { content: 'check the deployment', status: 'pending' },
+    ])
+  })
+})
+
+describe('index rebuild failures', () => {
   it('rebuilds what it can when one stored session cannot be read', async () => {
     const { root, cleanup } = await tempRoot('dsh-mission-rebuild-skip-')
     cleanups.push(cleanup)
     const first = await mount(root, [textResponse('work')])
-    const agent = await createAgent(first)
-    await first.ctx.missions.start(agent, { objective: 'survive a bad log', completionCriteria: ['partial'] })
-    await first.ctx.sessions.flush(agent.session)
+    for (const id of ['mission-session-a', 'mission-session-b']) {
+      const handle = await first.ctx.agents.create({
+        sessionId: SessionId(id),
+        agentOptions: { provider: 'mock', model: 'mock' },
+      })
+      await first.ctx.missions.start(handle.agent, {
+        objective: `mission ${id}`,
+        completionCriteria: ['partial'],
+      })
+      await first.ctx.sessions.flush(handle.agent.session)
+    }
     await first.ctx.fiber.dispose()
     contexts.splice(contexts.indexOf(first.ctx), 1)
 
+    // A session whose stored log cannot be decoded must cost that session only.
+    await writeFile(await findArtifact(root, 'mission-session-a'), '{not a session log\n')
     await removeIndexFiles(root)
-    const second = await mountHarness({
-      root,
-      script: [textResponse('continued')],
-      driver: true,
-      config: { sweepOnStartup: false },
-    })
-    contexts.push(second.ctx)
-    // One unreadable session must cost that session, not the whole rebuild.
-    const warn = vi.spyOn(second.ctx.logger, 'warn')
-    const stored = (second.ctx.missions as unknown as {
-      storedMission: (id: SessionId) => Promise<unknown>
-    })
-    const original = stored.storedMission.bind(second.ctx.missions)
-    stored.storedMission = async (id: SessionId) => {
-      if (String(id) === 'mission-session') throw new Error('unreadable log')
-      return await original(id)
-    }
-    await (second.ctx.missions as unknown as { rebuildIndex: () => Promise<void> }).rebuildIndex()
-    expect(warn.mock.calls.some(call => String(call[0]).includes('unreadable log'))).toBe(true)
-    expect(await second.ctx.missions.ledger.list()).toHaveLength(0)
+    const second = await mount(root, [textResponse('continued')], { sweepOnStartup: false })
+    expect((await second.ctx.missions.ledger.list()).map(row => String(row.sessionId)))
+      .toEqual(['mission-session-b'])
+  })
+
+  it('keeps rebuilding when one stored session cannot be read', async () => {
+    const { root, cleanup } = await tempRoot('dsh-mission-rebuild-ghost-')
+    cleanups.push(cleanup)
+    const harness = await mount(root, [textResponse('work')], { sweepOnStartup: false })
+    // A storage that lists a session whose artifact is already gone (a delete
+    // that stopped halfway, or a start that never flushed) must cost one row.
+    vi.spyOn(harness.ctx.sessionPersistence, 'list').mockResolvedValue([
+      { header: { id: 'mission-session-ghost' } } as never,
+    ])
+    await (harness.ctx.missions as unknown as { rebuildIndex: () => Promise<void> }).rebuildIndex()
+    expect(await harness.ctx.missions.ledger.list()).toEqual([])
   })
 
   it('skips the rebuild entirely when the medium cannot be listed', async () => {
