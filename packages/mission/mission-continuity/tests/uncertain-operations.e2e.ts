@@ -40,6 +40,7 @@ function start(
   home: string,
   sessionId: string | undefined,
   mockMode: 'tool-call' | 'answer',
+  effectMode?: 'before',
 ): ProfileChild {
   const child = startProfileChild({
     script: childScript,
@@ -51,6 +52,7 @@ function start(
       MISSION_MOCK_MODE: mockMode,
       MISSION_EFFECT_FILE: join(home, 'external-effects.jsonl'),
       MISSION_EFFECT_FAILPOINT: join(home, 'effect-failpoint'),
+      ...effectMode === undefined ? {} : { MISSION_EFFECT_MODE: effectMode },
       ...sessionId === undefined ? {} : { MISSION_SESSION_ID: sessionId },
     },
   })
@@ -132,6 +134,52 @@ describe('an interrupted external operation', () => {
       expect(report['effects']).toHaveLength(1)
       expect((await readFile(effectFile, 'utf8')).trim().split('\n')).toHaveLength(1)
       expect(report['rows']).toMatchObject([{ state: 'armed', attempts: 1 }])
+    } finally {
+      await rm(home, { recursive: true, force: true })
+    }
+  }, 300_000)
+
+  it('is not assumed to have failed when the process died before the tool ran', async () => {
+    const home = await mkdtemp(join(tmpdir(), 'mission-uncertain-before-'))
+    try {
+      // Stage A — the call is durably recorded and dispatched; the process dies
+      // at the top of the tool body, so the external world is untouched.
+      const crash = start('crash', home, undefined, 'tool-call', 'before')
+      const ready = await crash.waitForLine('ready')
+      expectLaneEntry(ready['missionEntry'], 'crash stage')
+      const sessionId = String(ready['sessionId'])
+      expect(ready['effects']).toBe(0)
+      expect((await crash.exited).signal).toBe('SIGKILL')
+      const effectFile = join(home, 'external-effects.jsonl')
+      expect(await readFile(effectFile, 'utf8').catch(() => '')).toBe('')
+      expect(await readFile(join(home, 'effect-failpoint'), 'utf8').catch(() => '')).toBe('')
+
+      // Stage B — no effect on disk is not evidence of failure. Startup must
+      // hold the mission and refuse to run the call again on its own.
+      const held = start('held', home, sessionId, 'answer')
+      const heldReport = await held.waitForLine('report')
+      expectLaneEntry(heldReport['missionEntry'], 'held stage')
+      expect((await held.exited).code).toBe(0)
+      expect(heldReport['liveAgent']).toBe(false)
+      expect(heldReport['attempts']).toBeUndefined()
+      const heldRows = heldReport['rows'] as { state: string; lastError?: { code: string; message: string }; attempts: number }[]
+      expect(heldRows).toHaveLength(1)
+      expect(heldRows[0]).toMatchObject({ state: 'held', attempts: 0, lastError: { code: 'uncertain-operations' } })
+      expect(heldRows[0]?.lastError?.message).toContain('external_effect')
+      expect(heldReport['requests']).toBe(0)
+      expect(heldReport['effects']).toEqual([])
+
+      // Stage C — the human path still works, and still does not re-run the call.
+      const authorized = start('authorize', home, sessionId, 'answer')
+      const report = await authorized.waitForLine('report')
+      expect((await authorized.exited).code).toBe(0)
+      expect(report['uncertainBefore']).toEqual([{ callId: 'call-external-effect', name: 'external_effect' }])
+      expect(report['report']).toMatchObject({ resumed: 1 })
+      const requests = report['requests'] as string[]
+      expect(requests).toHaveLength(1)
+      expect(requests[0]).toContain('outcome is unknown')
+      expect(report['effects']).toEqual([])
+      expect(await readFile(effectFile, 'utf8').catch(() => '')).toBe('')
     } finally {
       await rm(home, { recursive: true, force: true })
     }

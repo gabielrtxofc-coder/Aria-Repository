@@ -12,6 +12,9 @@
  * Environment:
  * - `MISSION_EFFECT_FILE`: append-only record of executed effects (required).
  * - `MISSION_EFFECT_FAILPOINT`: marker written after the effect, before hanging.
+ * - `MISSION_EFFECT_MODE`: `before` kills the process at the top of the body, so
+ *   the call is durably recorded while the external world is untouched — the
+ *   other half of the crash window, where recovery cannot assume failure either.
  * @module mission-effect-tool
  */
 
@@ -42,6 +45,9 @@ export function apply(ctx: Context): void {
     execute(args, exec) {
       const file = process.env['MISSION_EFFECT_FILE']
       if (file === undefined) throw new Error('MISSION_EFFECT_FILE must name the external state file')
+      // The narrowest crash window: the call is recorded and dispatched, the
+      // body is entered, and the process dies before anything external happens.
+      if (process.env['MISSION_EFFECT_MODE'] === 'before') process.kill(process.pid, 'SIGKILL')
       // The external effect happens exactly here, outside the durable log.
       appendFileSync(file, `${JSON.stringify({
         callId: String(exec.rootCallId),
