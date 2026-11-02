@@ -61,7 +61,8 @@ function start(
 ): Child {
   const launch = resolveExampleLaunch({
     // Both processes always boot from source through tsx, so this proof needs no
-    // build products; the built-bin keyless smoke owns artifact resolution.
+    // build products and runs in every lane that lists it, including the
+    // built-bin smoke gate; the keyless smoke there owns artifact resolution.
     srcBin: childScript,
     mode: 'src',
     tsconfigPath,
