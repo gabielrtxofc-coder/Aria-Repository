@@ -16,96 +16,49 @@
  *
  * The negative case boots the same world with `sweepOnStartup: false` and must
  * show the interrupted mission left untouched.
+ *
+ * The scenario itself is lane-independent: `DSH_EXAMPLE_MODE=lib` boots the same
+ * children under plain Node, where the composition's packages resolve through
+ * their exports into built `lib/`. Every child reports the mission entry it
+ * actually loaded, so the built lane proves it executed artifacts.
  */
 
-import { spawn, type ChildProcessByStdio } from 'node:child_process'
-import type { Readable } from 'node:stream'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { resolveExampleLaunch } from '../../../test-support/loader-smoke/src/index.ts'
+import { expectLaneEntry, startProfileChild } from './fixtures/profile-child.ts'
+import type { ProfileChild } from './fixtures/profile-child.ts'
 
 const childScript = fileURLToPath(new URL('./fixtures/mission-startup-child.ts', import.meta.url))
 const overlay = fileURLToPath(new URL('./fixtures/mission-startup.patch.yml', import.meta.url))
 const disabledOverlay = fileURLToPath(new URL('./fixtures/mission-startup-no-sweep.patch.yml', import.meta.url))
-const tsconfigPath = fileURLToPath(new URL('../../../../tsconfig.json', import.meta.url))
 
 const OBJECTIVE = 'finish the durable mission across a real restart'
 const CRITERION = 'the recovered turn reaches the model without a new user message'
 
-/** One running DSH process and everything captured from it. */
-interface Child {
-  readonly process: ChildProcessByStdio<null, Readable, Readable>
-  /** Complete stdout captured so far. */
-  output(): string
-  /** Complete stderr captured so far. */
-  errors(): string
-  /** Resolves once the process is gone, however it went. */
-  readonly exited: Promise<{ code: number | null; signal: NodeJS.Signals | null }>
-  /** First JSON line of the given `type`, or `undefined` before it appears. */
-  line(type: string): Record<string, unknown> | undefined
-  /** Wait for a JSON line of the given `type`; fails with captured output. */
-  waitForLine(type: string, timeoutMs?: number): Promise<Record<string, unknown>>
-}
+const running: ProfileChild[] = []
 
-const running: Child[] = []
-
-/** Start one DSH process booting the shipped headless profile. */
+/**
+ * Start one DSH process booting the shipped headless profile. The launch lane
+ * comes from the environment: the ordinary lane uses tsx over source and the
+ * built lane runs the same scenario under plain Node over `lib/`, and every
+ * report names the entry it loaded so the lane can be checked rather than
+ * assumed.
+ * @param mode - child mode.
+ * @param overlayPath - overlay patch file the child boots with.
+ * @param cwd - process working directory.
+ * @param env - durable home and keyless model environment.
+ * @returns the running child.
+ */
 function start(
-  mode: 'crash' | 'resume' | 'resume-disabled',
+  mode: 'crash' | 'crash-start' | 'resume' | 'resume-disabled',
   overlayPath: string,
   cwd: string,
   env: Record<string, string>,
-): Child {
-  const launch = resolveExampleLaunch({
-    // Both processes always boot from source through tsx, so this proof needs no
-    // build products and runs in every lane that lists it, including the
-    // built-bin smoke gate; the keyless smoke there owns artifact resolution.
-    srcBin: childScript,
-    mode: 'src',
-    tsconfigPath,
-    configArgs: [mode, overlayPath],
-    env,
-  })
-  const spawned = spawn(launch.command, launch.args, {
-    cwd,
-    env: { ...process.env, ...launch.env, ...env },
-    stdio: ['ignore', 'pipe', 'pipe'],
-  })
-  let stdout = ''
-  let stderr = ''
-  spawned.stdout.setEncoding('utf8').on('data', (chunk: string) => { stdout += chunk })
-  spawned.stderr.setEncoding('utf8').on('data', (chunk: string) => { stderr += chunk })
-  const exited = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>(resolve =>
-    spawned.once('exit', (code, signal) => resolve({ code, signal })))
-  const line = (type: string): Record<string, unknown> | undefined => stdout
-    .split('\n')
-    .flatMap((entry) => {
-      if (!entry.startsWith('{')) return []
-      const parsed = JSON.parse(entry) as Record<string, unknown>
-      return parsed['type'] === type ? [parsed] : []
-    })
-    .at(-1)
-  const child: Child = {
-    process: spawned,
-    exited,
-    output: () => stdout,
-    errors: () => stderr,
-    line,
-    async waitForLine(type, timeoutMs = 120_000) {
-      const deadline = Date.now() + timeoutMs
-      for (;;) {
-        const found = line(type)
-        if (found !== undefined) return found
-        if (Date.now() > deadline) {
-          throw new Error(`timed out waiting for a "${type}" line\nstdout:\n${stdout}\nstderr:\n${stderr}`)
-        }
-        await new Promise(resolve => setTimeout(resolve, 50))
-      }
-    },
-  }
+): ProfileChild {
+  const child = startProfileChild({ script: childScript, args: [mode, overlayPath], cwd, env })
   running.push(child)
   return child
 }
@@ -139,6 +92,7 @@ describe('mission continuity at real DSH startup', () => {
       const crashLog = join(home, 'crash-requests.jsonl')
       const crash = start('crash', overlay, home, environment(home, 'crash-requests.jsonl', 'hang'))
       const ready = await crash.waitForLine('ready')
+      expectLaneEntry(ready['missionEntry'], 'crash stage')
       expect(ready['sessionId']).toBeTypeOf('string')
       expect(ready['settled']).toBe(false)
       expect(ready['criteria']).toEqual([CRITERION])
@@ -157,6 +111,7 @@ describe('mission continuity at real DSH startup', () => {
         MISSION_SESSION_ID: String(ready['sessionId']),
       }))
       const report = await resume.waitForLine('report')
+      expectLaneEntry(report['missionEntry'], 'recovery stage')
       const finished = await resume.exited
       expect(report['error']).toBeUndefined()
       expect(finished.code).toBe(0)
@@ -216,6 +171,40 @@ describe('mission continuity at real DSH startup', () => {
     }
   }, 240_000)
 
+  it('recovers a mission whose start resolved just before the kill', async () => {
+    const home = await mkdtemp(join(tmpdir(), 'mission-startup-bare-'))
+    try {
+      // Stage A kills itself the instant `start()` resolves. Nothing else ran:
+      // no turn, no checkpoint, no explicit flush.
+      const crash = start('crash-start', overlay, home, environment(home, 'crash-requests.jsonl', 'answer'))
+      const ready = await crash.waitForLine('ready')
+      expectLaneEntry(ready['missionEntry'], 'start-only crash stage')
+      expect((await crash.exited).signal).toBe('SIGKILL')
+
+      // Stage B must find the mission, which is exactly the promise `start()`
+      // makes: a resolved start is a recoverable mission.
+      const resume = start('resume', overlay, home, environment(home, 'resume-requests.jsonl', 'answer', {
+        MISSION_SESSION_ID: String(ready['sessionId']),
+      }))
+      const report = await resume.waitForLine('report')
+      expectLaneEntry(report['missionEntry'], 'start-only recovery stage')
+      expect((await resume.exited).code).toBe(0)
+      expect(report['error']).toBeUndefined()
+      expect(report['attemptAtBoot']).toBe(1)
+      expect(report['attempts']).toBe(1)
+      expect(report['notices']).toBe(1)
+      expect(report['rowsAtBoot']).toMatchObject([{
+        sessionId: ready['sessionId'],
+        missionId: ready['missionId'],
+        attempts: 1,
+      }])
+      // Recovery is not completion.
+      expect(report['settled']).toBe(false)
+    } finally {
+      await rm(home, { recursive: true, force: true })
+    }
+  }, 240_000)
+
   it('leaves the interrupted mission untouched when sweepOnStartup is off', async () => {
     const home = await mkdtemp(join(tmpdir(), 'mission-startup-off-'))
     try {
@@ -230,6 +219,7 @@ describe('mission continuity at real DSH startup', () => {
         MISSION_SESSION_ID: String(ready['sessionId']),
       }))
       const report = await resume.waitForLine('report')
+      expectLaneEntry(report['missionEntry'], 'disabled-recovery stage')
       expect((await resume.exited).code).toBe(0)
       expect(resume.errors()).not.toContain('failed to import')
 

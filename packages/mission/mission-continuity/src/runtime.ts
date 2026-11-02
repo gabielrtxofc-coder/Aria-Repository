@@ -19,6 +19,18 @@ export const MAX_DIAGNOSTIC_LENGTH = 500
 export const POLICY_CODE_PATTERN = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/
 
 /**
+ * Recovery code raised when the durable log holds recorded tool calls whose
+ * result never became durable. Recovery must not resume past that doubt.
+ */
+export const UNCERTAIN_OPERATIONS = 'uncertain-operations'
+
+/**
+ * Durable index code recording that a human reviewed those calls and cleared
+ * the hold, so the next sweep may claim the mission instead of re-raising it.
+ */
+export const UNCERTAIN_ACKNOWLEDGED = 'uncertain-operations-acknowledged'
+
+/**
  * Brand a string as a mission id.
  * @param id - raw mission identifier.
  * @returns the same string with the compile-time brand.

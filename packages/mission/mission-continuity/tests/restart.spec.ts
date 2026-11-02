@@ -95,7 +95,7 @@ describe('restart continuity', () => {
     expect(activations).toContain('armed')
   })
 
-  it('does not duplicate attempts when the sweep runs twice', async () => {
+  it('recovers one interruption once when the sweep runs twice', async () => {
     const { root, cleanup } = await tempRoot('dsh-mission-once-')
     cleanups.push(cleanup)
     const first = await mount(root, [textResponse('step one')])
@@ -106,13 +106,22 @@ describe('restart continuity', () => {
 
     const second = await mount(root, [textResponse('continued')], { sweepOnStartup: false })
     expect((await second.ctx.missions.sweep()).resumed).toBe(1)
-    // A second sweep sees the same armed row but the live agent is already resumed.
+    // The second sweep sees the same armed row, but the durable record still
+    // reads exactly like the state one attempt already paid for: recovering it
+    // again would spend a second attempt on the same interruption, queue a
+    // second notice, and resume work this process already owns.
     const again = await second.ctx.missions.sweep()
     expect(again.considered).toBe(1)
+    expect(again.skipped).toBe(1)
+    expect(again.resumed).toBe(0)
     const resumed = second.ctx.agents.get(SessionId('mission-session'))!
-    expect(second.ctx.missions.get(resumed)?.attempts).toBe(2)
+    expect(second.ctx.missions.get(resumed)?.attempts).toBe(1)
     await second.ctx.sessions.flush(resumed.session)
     const artifact = await readSessionArtifact(root)
-    expect(countMissionNotices(artifact)).toBe(2)
+    expect(countMissionNotices(artifact)).toBe(1)
+    // A live sweep keeps skipping while nothing durable changed; the work is
+    // already running, so there is nothing to recover.
+    expect((await second.ctx.missions.sweep()).skipped).toBe(1)
+    expect(second.ctx.missions.get(resumed)?.attempts).toBe(1)
   })
 })

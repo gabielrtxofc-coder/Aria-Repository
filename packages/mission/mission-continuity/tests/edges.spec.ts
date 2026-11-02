@@ -60,11 +60,21 @@ describe('configuration and validation edges', () => {
       sweepOnStartup: true,
       defaultMaxRecoveryAttempts: 3,
       maxMissionsPerSweep: 32,
+      rebuildIndexOnStartup: true,
+      maxRebuildSessions: 64,
     })
-    expect(resolveConfig({ sweepOnStartup: false, defaultMaxRecoveryAttempts: 7, maxMissionsPerSweep: 2 })).toEqual({
+    expect(resolveConfig({
       sweepOnStartup: false,
       defaultMaxRecoveryAttempts: 7,
       maxMissionsPerSweep: 2,
+      rebuildIndexOnStartup: false,
+      maxRebuildSessions: 5,
+    })).toEqual({
+      sweepOnStartup: false,
+      defaultMaxRecoveryAttempts: 7,
+      maxMissionsPerSweep: 2,
+      rebuildIndexOnStartup: false,
+      maxRebuildSessions: 5,
     })
   })
 

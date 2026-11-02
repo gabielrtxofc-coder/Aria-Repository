@@ -25,3 +25,7 @@
 - insert:
     - id: mission-mock-llm
       name: './mission-mock-llm.ts'
+    # Simulated non-idempotent external operation, so the revival proofs can show
+    # an effect that survives the process while its result never does.
+    - id: mission-effect-tool
+      name: './mission-effect-tool.ts'

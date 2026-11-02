@@ -17,6 +17,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import {
   LlmAdapter,
   ReasoningEffortId,
+  ToolCallId,
   type GenerateOptions,
   type LlmResolvedModelInfo,
   type StreamChunk,
@@ -33,8 +34,29 @@ function lastMessageText(options: GenerateOptions): string {
     .join('\n')
 }
 
+/** One request that asks for the simulated external operation. */
+function toolCallChunks(): StreamChunk[] {
+  return [
+    { type: 'block-start', index: 0, blockType: 'tool-call' },
+    {
+      type: 'block-end',
+      index: 0,
+      block: {
+        type: 'tool-call',
+        id: ToolCallId('call-external-effect'),
+        name: 'external_effect',
+        arguments: '{"note":"irreversible"}',
+      },
+    },
+    { type: 'finish', reason: { kind: 'tool-calls' } },
+  ]
+}
+
 /** Keyless adapter that records every request before it answers or blocks. */
 class MissionMockAdapter extends LlmAdapter {
+  /** Requests this adapter has already served. */
+  private requests = 0
+
   override async resolveModel(provider: string, model: string): Promise<LlmResolvedModelInfo> {
     return {
       provider,
@@ -50,6 +72,16 @@ class MissionMockAdapter extends LlmAdapter {
     if (log !== undefined) {
       appendFileSync(log, `${JSON.stringify({ at: Date.now(), messages: options.messages.length, last: text })}\n`)
     }
+    if (process.env['MISSION_MOCK_MODE'] === 'tool-call' && this.requests === 0) {
+      // The first request asks for the external operation, so the crash lands
+      // while a recorded call has no durable result. Later requests answer with
+      // plain text: a recovered model that re-issues the call would show up as a
+      // second request carrying the tool definition, which the proof rejects.
+      this.requests += 1
+      for (const chunk of toolCallChunks()) yield chunk
+      return
+    }
+    this.requests += 1
     if (process.env['MISSION_MOCK_MODE'] === 'hang') {
       // Never yields: the parent kills this process with SIGKILL while the
       // request is in flight, so the interruption is a real crash mid-turn.

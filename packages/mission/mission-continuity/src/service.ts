@@ -21,18 +21,21 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 // Type-only: declares the `todos` projection key this service reads for the plan.
 import type {} from '@deepseek-ai/dsh-tool-todo'
 import type { RecoveryNoticeStep } from './prompt.ts'
-import { GoalId } from '@deepseek-ai/dsh-goal'
-import { TOOL_OUTCOME_UNKNOWN } from '@deepseek-ai/dsh-session'
+import { GoalId, goalProjectionDefinition } from '@deepseek-ai/dsh-goal'
+import { SessionId, TOOL_OUTCOME_UNKNOWN } from '@deepseek-ai/dsh-session'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
+import type {} from '@deepseek-ai/dsh-session-persistence'
 import type {} from '@deepseek-ai/dsh-session-projection'
 import type { ProjectionDefinition } from '@deepseek-ai/dsh-session-projection'
-import { applyMissionChange, decodeMissionChange, missionChangeRef } from './fold.ts'
+import { applyMissionChange, decodeMissionChange, foldMission, missionChangeRef } from './fold.ts'
 import type { MissionFoldState } from './fold.ts'
 import {
   MAX_COMPLETION_CRITERIA,
   MAX_COMPLETION_CRITERION_LENGTH,
   MAX_DIAGNOSTIC_LENGTH,
   MISSION_CHANGE_VERSION,
+  UNCERTAIN_ACKNOWLEDGED,
+  UNCERTAIN_OPERATIONS,
   MissionError,
   MissionId,
   POLICY_CODE_PATTERN,
@@ -66,6 +69,8 @@ export {
   MAX_COMPLETION_CRITERION_LENGTH,
   MAX_DIAGNOSTIC_LENGTH,
   MISSION_CHANGE_VERSION,
+  UNCERTAIN_ACKNOWLEDGED,
+  UNCERTAIN_OPERATIONS,
   MissionError,
   MissionId,
 } from './runtime.ts'
@@ -95,6 +100,14 @@ export interface Config {
   defaultMaxRecoveryAttempts?: number
   /** Most index rows one sweep considers; the remainder waits for the next sweep. */
   maxMissionsPerSweep?: number
+  /**
+   * Rebuild missing index rows from the durable session logs before the startup
+   * sweep. The index is a hint, never the source of truth, so a lost row must
+   * not make a durable mission permanently invisible.
+   */
+  rebuildIndexOnStartup?: boolean
+  /** Most stored sessions one rebuild reads while looking for unknown missions. */
+  maxRebuildSessions?: number
 }
 
 /** Validated deployment configuration. */
@@ -105,6 +118,10 @@ export interface ResolvedConfig {
   defaultMaxRecoveryAttempts: number
   /** Positive bound on rows considered by one sweep. */
   maxMissionsPerSweep: number
+  /** Whether activation rebuilds missing index rows from the session logs. */
+  rebuildIndexOnStartup: boolean
+  /** Positive bound on session logs one rebuild reads. */
+  maxRebuildSessions: number
 }
 
 /** Most pending or uncertain calls retained by the projection. */
@@ -366,6 +383,12 @@ export function resolveConfig(config: Config): ResolvedConfig {
       'MISSION_INVALID_ATTEMPTS',
       'maxMissionsPerSweep',
     ),
+    rebuildIndexOnStartup: config.rebuildIndexOnStartup ?? true,
+    maxRebuildSessions: positiveInteger(
+      config.maxRebuildSessions ?? 64,
+      'MISSION_INVALID_ATTEMPTS',
+      'maxRebuildSessions',
+    ),
   }
 }
 
@@ -391,6 +414,8 @@ export class MissionService extends Service {
     sweepOnStartup: z.boolean().default(true),
     defaultMaxRecoveryAttempts: z.number().step(1).min(1).max(100).default(3),
     maxMissionsPerSweep: z.number().step(1).min(1).max(1_000).default(32),
+    rebuildIndexOnStartup: z.boolean().default(true),
+    maxRebuildSessions: z.number().step(1).min(1).max(10_000).default(64),
   })
 
   /** Validated deployment configuration. */
@@ -507,12 +532,27 @@ export class MissionService extends Service {
       )
     }
     try {
-      return this.commit(agent, 'start', mission)
+      const view = this.commit(agent, 'start', mission)
+      // `commit` only appends. The start promise must not report success while
+      // the record it announces could still be lost with the process, so the
+      // durability barrier runs before the caller sees the mission.
+      await this.flush(agent)
+      return view
     } catch (error: unknown) {
       await this.dropRow(mission.id, agent)
       this.blockUnrecoverable(agent, mission, 'mission-record-failed',
-        `The mission record could not be appended: ${reasonOf(error)}`)
-      throw error
+        `The mission record could not be made durable: ${reasonOf(error)}`)
+      // The caller was told the start failed, so the session must not be left
+      // holding a current mission nobody may recover and nobody can replace. A
+      // tombstone makes the slot reusable; it rides the same broken medium, and
+      // when it is lost the recovery sweep settles the orphaned record instead.
+      this.abandonStart(agent, mission)
+      throw error instanceof MissionError
+        ? error
+        : new MissionError(
+            `mission record could not be flushed: ${reasonOf(error)}`,
+            'MISSION_PERSISTENCE_FAILED',
+          )
     }
   }
 
@@ -624,6 +664,23 @@ export class MissionService extends Service {
       updatedAt: Math.max(Date.now(), current.updatedAt),
     }
     const view = this.commit(agent, 'resume', next)
+    // Clearing an uncertainty hold is the human decision that lets recovery
+    // touch this mission again. The record itself cannot express "a person read
+    // this", so the durable index carries it: the next sweep sees the
+    // acknowledgement instead of raising the same hold forever. The marker is a
+    // hint like every other row field — if the index is rebuilt, the hold comes
+    // back and a human is asked again, which is the safe direction.
+    if (current.authorization.code === UNCERTAIN_OPERATIONS
+      && this.state(agent).uncertainOperations.length > 0) {
+      await this.ledger.put({
+        ...this.row(agent, view, this.rowState(view)),
+        lastError: {
+          code: UNCERTAIN_ACKNOWLEDGED,
+          message: 'A human reviewed the interrupted calls with unknown outcomes and resumed this mission.',
+        },
+      })
+      return view
+    }
     await this.recordRow(agent, view)
     return view
   }
@@ -675,10 +732,81 @@ export class MissionService extends Service {
       : 'held'
   }
 
-  /** Open the ledger and perform the startup sweep. */
+  /** Open the ledger, repair it from durable logs, then perform the startup sweep. */
   private async boot(): Promise<void> {
     await this.ledger.open()
+    await this.rebuildIndex()
     await this.supervisor.start()
+  }
+
+  /**
+   * Rebuild discovery rows the index lost from the durable session logs.
+   *
+   * The log owns mission state and the index only makes it discoverable without
+   * reading every log, so a missing row must never hide a durable mission: a
+   * restored medium, a dropped write, or a hand-edited index would otherwise
+   * strand work that exists on disk. Startup therefore reads the logs of the
+   * sessions the index does not mention and writes the row each durable record
+   * justifies. A rebuilt row is still only a hint — the sweep reconciles it
+   * against the log before it claims anything — and the scan is bounded, so an
+   * unreachable or oversized corpus degrades to "not rebuilt this boot".
+   */
+  private async rebuildIndex(): Promise<void> {
+    if (!this.resolved.rebuildIndexOnStartup) return
+    let known: Set<string>
+    let snapshots: readonly { readonly header: { readonly id: string } }[]
+    try {
+      known = new Set((await this.ledger.list()).map(row => row.sessionId))
+      snapshots = await this.ctx.sessionPersistence.list()
+    } catch (error: unknown) {
+      this.ctx.logger.warn(`mission-continuity: index rebuild skipped: ${reasonOf(error)}`)
+      return
+    }
+    const missing = snapshots.filter(snapshot => !known.has(snapshot.header.id))
+    if (missing.length === 0) return
+    let rebuilt = 0
+    for (const snapshot of missing.slice(0, this.resolved.maxRebuildSessions)) {
+      try {
+        const mission = await this.storedMission(SessionId(snapshot.header.id))
+        if (mission === null) continue
+        await this.ledger.put(this.rowFor(SessionId(snapshot.header.id), mission, this.rowState(mission)))
+        rebuilt += 1
+      } catch (error: unknown) {
+        this.ctx.logger.warn(
+          `mission-continuity: index rebuild skipped "${snapshot.header.id}": ${reasonOf(error)}`,
+        )
+      }
+    }
+    if (rebuilt > 0) {
+      this.ctx.logger.info(`mission-continuity: rebuilt ${rebuilt} discovery row(s) from the session logs`)
+    }
+  }
+
+  /**
+   * Fold one stored session log far enough to find the mission work it still
+   * owes. The log is the authority, so the rebuild reads the same events a
+   * replay would: the current mission record, and the durable objective it is
+   * linked to. A mission whose objective already completed is finished work, not
+   * recoverable work, and must not reappear as an armed row on every boot.
+   * @param sessionId - session whose durable log to read.
+   * @returns the durable record, or `null` when the log holds no recoverable mission.
+   */
+  private async storedMission(sessionId: SessionId): Promise<MissionSnapshot | null> {
+    const handle = await this.ctx.sessionPersistence.open(sessionId, 'read')
+    try {
+      const { events } = await handle.read(0)
+      const mission = foldMission(events).mission
+      if (mission === undefined) return null
+      const goals = events.reduce(goalProjectionDefinition.apply, goalProjectionDefinition.init())
+      const goal = goals.current
+      // Only a live objective is recoverable work: a completed one is settled,
+      // and a missing or replaced one is the sweep's `objective-missing` hold,
+      // which a rebuild cannot justify from a dropped index alone.
+      if (goal === null || goal.goal.id !== mission.goal.id || goal.goal.phase === 'complete') return null
+      return mission
+    } finally {
+      await handle.close()
+    }
   }
 
   /** Projection state, failing loudly after a retained replay failure. */
@@ -782,6 +910,11 @@ export class MissionService extends Service {
 
   /** Build one discovery row from a durable record. */
   private row(agent: Agent, mission: MissionSnapshot, state: 'armed' | 'held'): RecoveryRecord {
+    return this.rowFor(agent.session.id, mission, state)
+  }
+
+  /** Build one discovery row for a stored record owned by one session. */
+  private rowFor(sessionId: SessionId, mission: MissionSnapshot, state: 'armed' | 'held'): RecoveryRecord {
     const lastError = state === 'held'
       ? {
           code: mission.authorization?.code
@@ -793,7 +926,7 @@ export class MissionService extends Service {
         }
       : undefined
     return {
-      sessionId: agent.session.id,
+      sessionId,
       missionId: mission.id,
       goalId: mission.goal.id,
       revision: mission.revision,
@@ -801,6 +934,28 @@ export class MissionService extends Service {
       state,
       ...lastError === undefined ? {} : { lastError },
       updatedAt: new Date(mission.updatedAt).toISOString(),
+    }
+  }
+
+  /**
+   * Retire a mission whose start already failed, so the session can start again
+   * instead of exposing a current record the caller was told does not exist.
+   * @param agent - owning live agent.
+   * @param mission - the record the failed start had committed.
+   */
+  private abandonStart(agent: Agent, mission: MissionSnapshot): void {
+    try {
+      const change: MissionChangeMeta = {
+        kind: 'mission/change',
+        version: MISSION_CHANGE_VERSION,
+        operation: 'clear',
+        cleared: { id: mission.id, revision: mission.revision },
+        clearedAt: Math.max(Date.now(), mission.updatedAt),
+      }
+      agent.session.append('mission/change', change)
+      this.notify(agent, change)
+    } catch (error: unknown) {
+      this.ctx.logger.warn(`mission-continuity: could not retire the failed start: ${reasonOf(error)}`)
     }
   }
 

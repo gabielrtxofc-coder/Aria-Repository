@@ -15,7 +15,7 @@ import type { Agent, AgentHandle } from '@deepseek-ai/dsh-agent'
 import type { GoalChanged, GoalView } from '@deepseek-ai/dsh-goal'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { SessionId } from '@deepseek-ai/dsh-session'
-import { MAX_DIAGNOSTIC_LENGTH } from './runtime.ts'
+import { MAX_DIAGNOSTIC_LENGTH, UNCERTAIN_ACKNOWLEDGED, UNCERTAIN_OPERATIONS } from './runtime.ts'
 import { renderMissionRecoveryNotice } from './prompt.ts'
 import type { RecoveryRecord } from './ledger.ts'
 import type { MissionService, ResolvedConfig } from './service.ts'
@@ -27,7 +27,7 @@ import type {
 } from './types.ts'
 
 /** What one candidate produced. */
-export type MissionSweepOutcome = 'resumed' | 'held' | 'settled' | 'exhausted' | 'failed'
+export type MissionSweepOutcome = 'resumed' | 'held' | 'settled' | 'exhausted' | 'failed' | 'skipped'
 
 /** Result of one recovery sweep. */
 export interface MissionSweepReport {
@@ -43,11 +43,24 @@ export interface MissionSweepReport {
   readonly exhausted: number
   /** Missions whose recovery raised an unexpected failure. */
   readonly failed: number
+  /** Candidates this supervisor already recovered and has not seen progress from. */
+  readonly skipped: number
 }
 
 /** Render an unexpected value for logs and diagnostics. */
 function reasonOf(value: unknown): string {
   return value instanceof Error ? value.message : String(value)
+}
+
+/**
+ * Whether a failure means another live instance owns the session, not that the
+ * mission is broken. Two `dsh` processes over one home are a supported mistake:
+ * the loser must not clobber the winner's index row with its own stale view.
+ * @param error - the rejection raised while composing or reading the session.
+ * @returns `true` when the session belongs to another owner.
+ */
+function ownedElsewhere(error: unknown): boolean {
+  return error instanceof Error && error.name === 'SessionAlreadyOwnedError'
 }
 
 /** Bound one diagnostic to what a durable row accepts. */
@@ -62,6 +75,14 @@ function diagnostic(message: string): string {
  */
 export class MissionSupervisor {
   private readonly handles = new Map<string, AgentHandle>()
+  /**
+   * Missions this supervisor already recovered, keyed by session, with the
+   * durable state the recovery left behind. One interruption buys one recovery:
+   * a later sweep skips a candidate whose record still reads exactly like the
+   * one an attempt already paid for, so a repeated sweep cannot consume a second
+   * attempt, queue a second notice, or resume the same work twice.
+   */
+  private readonly claims = new Map<string, { readonly missionId: string; readonly revision: number; readonly attempts: number }>()
   private running: Promise<MissionSweepReport> | undefined
   private stopping = false
 
@@ -83,6 +104,7 @@ export class MissionSupervisor {
       })
       const disposed = ctx.on('agent/disposed', ({ agent }) => {
         this.handles.delete(agent.session.id)
+        this.claims.delete(agent.session.id)
       })
       return () => {
         settled()
@@ -118,6 +140,7 @@ export class MissionSupervisor {
    * @param sessionId - session whose held Agent is released.
    */
   release(sessionId: SessionId): void {
+    this.claims.delete(sessionId)
     const handle = this.handles.get(sessionId)
     if (handle === undefined) return
     this.handles.delete(sessionId)
@@ -137,8 +160,10 @@ export class MissionSupervisor {
     const waits: Promise<unknown>[] = []
     for (const [sessionId, handle] of [...this.handles]) {
       this.handles.delete(sessionId)
+      this.claims.delete(sessionId)
       waits.push(handle.dispose())
     }
+    this.claims.clear()
     // `allSettled` already contains a failing sweep or release.
     if (this.running !== undefined) waits.push(this.running)
     await Promise.allSettled(waits)
@@ -149,7 +174,7 @@ export class MissionSupervisor {
     const rows = (await this.service.ledger.list())
       .filter(row => row.state === 'armed')
       .slice(0, this.config.maxMissionsPerSweep)
-    const report = { considered: rows.length, resumed: 0, held: 0, settled: 0, exhausted: 0, failed: 0 }
+    const report = { considered: rows.length, resumed: 0, held: 0, settled: 0, exhausted: 0, failed: 0, skipped: 0 }
     for (const row of rows) {
       if (this.stopping) break
       const outcome = await this.recover(row)
@@ -167,6 +192,9 @@ export class MissionSupervisor {
     let handle: AgentHandle | undefined
     try {
       let agent = this.ctx.agents.get(row.sessionId)
+      // The Agent this supervisor already resumed for the same durable state
+      // *is* the recovery; claiming it again would duplicate the work.
+      if (agent !== undefined && this.alreadyRecovered(agent)) return 'skipped'
       if (agent === undefined) {
         const plan = await this.planFor(row.sessionId)
         handle = await this.ctx.agents.resume({
@@ -184,6 +212,9 @@ export class MissionSupervisor {
       return outcome
     } catch (error: unknown) {
       if (handle !== undefined) this.release(row.sessionId)
+      // The other owner is already recovering this mission. Leaving the row
+      // alone keeps its attempt count and notice the only ones that exist.
+      if (ownedElsewhere(error)) return 'skipped'
       await this.hold(row, 'recovery-failed', reasonOf(error))
       return 'failed'
     }
@@ -212,6 +243,24 @@ export class MissionSupervisor {
       await this.hold(row, mission.authorization.code, mission.authorization.message)
       return 'held'
     }
+    // A call that started without a durable result may or may not have changed
+    // external state. Resuming would let the model repeat a destructive action
+    // nobody confirmed, so recovery stops and records the doubt where a human
+    // can act on it; only a recorded decision resumes this mission.
+    const uncertain = this.service.uncertainOperations(agent)
+    if (uncertain.length > 0 && row.lastError?.code !== UNCERTAIN_ACKNOWLEDGED) {
+      const message = `Interrupted tool calls whose outcome is unknown: ${
+        uncertain.map(operation => operation.name).join(', ')
+      }. Verify the external state before this mission continues.`
+      const authorized = await this.service.authorize(
+        agent,
+        { id: mission.id, revision: mission.revision },
+        { code: UNCERTAIN_OPERATIONS, message },
+      )
+      await this.hold({ ...row, revision: authorized.revision, attempts: authorized.attempts },
+        UNCERTAIN_OPERATIONS, message)
+      return 'held'
+    }
     const goal = this.ctx.goals.get(agent)
     if (goal === undefined || goal.id !== mission.goal.id) {
       await this.hold(row, 'objective-missing', 'The mission objective is no longer current for this session.')
@@ -230,6 +279,24 @@ export class MissionSupervisor {
     }
     await this.resume(agent, mission, goal, interruption)
     return 'resumed'
+  }
+
+  /**
+   * Whether this supervisor already paid an attempt for the durable state one
+   * Agent still holds. Progress advances the revision or the attempt count, so a
+   * genuinely new interruption after progress is claimable again.
+   * @param agent - live Agent the candidate resolves to.
+   * @returns `true` when a claim covers the current record.
+   */
+  private alreadyRecovered(agent: Agent): boolean {
+    const claim = this.claims.get(agent.session.id)
+    if (claim === undefined) return false
+    /* v8 ignore next 4 -- the claim is only written for a live Agent of this session. */
+    const mission = this.service.get(agent)
+    if (mission === undefined) return false
+    return mission.id === claim.missionId
+      && mission.revision === claim.revision
+      && mission.attempts === claim.attempts
   }
 
   /**
@@ -268,6 +335,11 @@ export class MissionSupervisor {
     // yields to competing queued input, so the model reads why it woke before
     // the next automatic round is admitted.
     agent.followup(notice)
+    this.claims.set(agent.session.id, {
+      missionId: attempted.id,
+      revision: attempted.revision,
+      attempts: attempted.attempts,
+    })
     const current = this.ctx.goals.get(agent)
     if (current !== undefined && current.id === goal.id && current.activation === 'disarmed') {
       this.ctx.goals.resume(agent, { id: current.id, revision: current.revision })
@@ -316,6 +388,7 @@ export class MissionSupervisor {
 
   /** Drop a stale row and stop holding its Agent. */
   private async settle(row: RecoveryRecord): Promise<void> {
+    this.claims.delete(row.sessionId)
     await this.service.ledger.delete(row.missionId)
     this.release(row.sessionId)
   }
