@@ -62,7 +62,7 @@ describe('mission continuity across a real process restart', () => {
       attempts: number
       interruption: string
       objective: string
-      activation: string
+      activations: string[]
       requests: number
       notices: number
     }
@@ -70,7 +70,9 @@ describe('mission continuity across a real process restart', () => {
     expect(report.attempts).toBe(1)
     expect(report.interruption).toBe('process-restart')
     expect(report.objective).toBe('survive a machine crash')
-    expect(report.activation).toBe('armed')
+    // Recovery re-armed the objective: the activation edge is recorded as it
+    // happened, because the continuation rounds move the objective afterwards.
+    expect(report.activations).toContain('armed')
     expect(report.notices).toBe(1)
     expect(report.requests).toBeGreaterThan(0)
   }, CHILD_TIMEOUT_MS * 2)

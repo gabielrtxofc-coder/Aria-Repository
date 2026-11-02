@@ -21,8 +21,7 @@ async function hostWith(service: unknown): Promise<Context> {
   const ctx = new Context()
   contexts.push(ctx)
   if (service !== undefined) {
-    (ctx as unknown as { provide(name: string, value: unknown): void })
-      .provide('agentDefaultModel', service)
+    ctx.provide('agentDefaultModel', service)
   }
   await ctx.plugin(plugin)
   return ctx

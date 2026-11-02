@@ -1,0 +1,27 @@
+# Keyless overlay over the shipped headless profile (base + headless bundles).
+# It changes only the model route and the one-shot headless runner: durable
+# session and storage roots stay the shipped `dshHomePath(...)` defaults under
+# DSH_HOME, so both processes of a restart proof read the same state.
+- id: headless-startup
+  disabled: true
+
+- id: headless-runner
+  disabled: true
+
+- id: llm-deepseek
+  disabled: true
+
+- id: llm-pi-ai
+  disabled: true
+
+- id: agent-default-model
+  config:
+    provider: mission-mock
+    model: mission-mock
+
+- id: agent-instructions
+  disabled: true
+
+- insert:
+    - id: mission-mock-llm
+      name: './mission-mock-llm.ts'

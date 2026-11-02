@@ -99,4 +99,4 @@ Resume from the last consistent step. Do not repeat work already recorded as com
 <a id="dev-note"></a>
 ## 开发备注
 
-测试会在临时持久目录上挂载真实组合（会话、投影、存储、目标、目标轮次驱动以及脚本化 LLM 适配器）；重启覆盖包含一个子进程测试，它用 `SIGKILL` 杀死正在运行任务的进程并在新进程中恢复该任务。运行方式为 `pnpm exec vitest run packages/mission/mission-continuity`，崩溃测试为 `pnpm exec vitest run --config vitest.e2e.config.ts packages/mission/mission-continuity/tests/restart-process.e2e.ts`。本包要求逐文件 100% 覆盖率。
+测试会在临时持久目录上挂载真实组合（会话、投影、存储、目标、目标轮次驱动以及脚本化 LLM 适配器）；重启覆盖包含一个子进程测试，它用 `SIGKILL` 杀死正在运行任务的进程并在新进程中恢复该任务。运行方式为 `pnpm exec vitest run packages/mission/mission-continuity`，崩溃测试为 `pnpm exec vitest run --config vitest.e2e.config.ts packages/mission/mission-continuity/tests/restart-process.e2e.ts`。启动流程的覆盖以两个进程通过生产配置加载器启动随包发布的 `headless` 配置（`base` 与 `headless` 两个 bundle）：第一个进程创建任务、持久写入检查点，并在模型请求仍未结束时被 `SIGKILL` 杀死；第二个进程使用同一个 `DSH_HOME` 与相同的默认配置启动，不发送任何消息，也不调用任何恢复 API，仍必须恰好恢复该任务一次。配套用例以 `sweepOnStartup: false` 启动同一世界，任务必须保持原样不被触碰。两者都使用仅替换模型路由的无密钥覆盖层，运行方式为 `pnpm exec vitest run --config vitest.e2e.config.ts packages/mission/mission-continuity/tests/mission-startup.e2e.ts`。本包要求逐文件 100% 覆盖率。

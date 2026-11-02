@@ -42,6 +42,12 @@ function text(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim().length > 0 ? value : undefined
 }
 
+/** Whether a host value exposes the one method this policy needs. */
+function isDefaultSelectionService(value: unknown): value is DefaultSelectionService {
+  return typeof value === 'object' && value !== null
+    && typeof Reflect.get(value, 'currentSelection') === 'function'
+}
+
 /**
  * Read the host's default model selection without depending on its package.
  * @param ctx - composition that may provide `agentDefaultModel`.
@@ -51,9 +57,8 @@ function text(value: unknown): string | undefined {
 export function defaultAgentOptions(ctx: Context): AgentOptions | undefined {
   // The service name is not part of this package's Context declarations, so the
   // lookup stays structural: a profile without the service simply gets no fill.
-  const read = ctx.get as unknown as (service: string) => unknown
-  const service = read.call(ctx, 'agentDefaultModel') as DefaultSelectionService | undefined
-  if (typeof service?.currentSelection !== 'function') return undefined
+  const service: unknown = ctx.get('agentDefaultModel')
+  if (!isDefaultSelectionService(service)) return undefined
   const selection = service.currentSelection()
   const provider = text(selection.provider)
   const model = text(selection.model)

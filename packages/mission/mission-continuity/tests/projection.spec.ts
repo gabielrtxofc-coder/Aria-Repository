@@ -5,8 +5,10 @@
  */
 
 import { describe, expect, it } from 'vitest'
+import { createToolResultMessage } from '@deepseek-ai/dsh-llm'
+import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
-import { TOOL_OUTCOME_UNKNOWN } from '@deepseek-ai/dsh-session'
+import { SessionSeq, TOOL_OUTCOME_UNKNOWN } from '@deepseek-ai/dsh-session'
 import { missionProjectionDefinition } from '../src/index.ts'
 import type { MissionChangeMeta, MissionProjectionState, MissionSnapshot } from '../src/index.ts'
 
@@ -34,17 +36,32 @@ function changeEvent(record: MissionSnapshot, seq = 0): SessionEvent {
 
 /** One tool call event. */
 function callEvent(callId: string, seq: number): SessionEvent {
-  return { type: 'tool/call', seq, time: 1, data: { callId, name: 'bash' } } as unknown as SessionEvent
+  return {
+    type: 'tool/call',
+    seq: SessionSeq(seq),
+    time: 1,
+    data: { turn: 1, step: 1, callId: ToolCallId(callId), name: 'bash', arguments: '{}' },
+  } as SessionEvent
 }
 
 /** One tool result event for a call, optionally carrying the unknown-outcome code. */
 function resultEvent(callId: string, seq: number, code?: string): SessionEvent {
+  const message = createToolResultMessage({
+    callId: ToolCallId(callId),
+    content: [{ type: 'text', text: 'done' }],
+    isError: code !== undefined,
+  })
   return {
     type: 'tool/result',
-    seq,
+    seq: SessionSeq(seq),
     time: 1,
-    data: { message: { source: { callId } }, ...code === undefined ? {} : { error: { code } } },
-  } as unknown as SessionEvent
+    data: {
+      turn: 1,
+      step: 1,
+      message,
+      ...code === undefined ? {} : { error: { name: 'unknown-outcome', code } },
+    },
+  } as SessionEvent
 }
 
 /** Replay a list of events through the projection unit. */
@@ -137,7 +154,7 @@ describe('mission projection unit', () => {
   it('leaves unrelated events untouched', () => {
     const state = missionProjectionDefinition.init()
     expect(missionProjectionDefinition.apply(state, {
-      type: 'turn/start', seq: 0, time: 1, data: {},
-    } as unknown as SessionEvent)).toBe(state)
+      type: 'turn/start', seq: SessionSeq(0), time: 1, data: { turn: 1 },
+    })).toBe(state)
   })
 })

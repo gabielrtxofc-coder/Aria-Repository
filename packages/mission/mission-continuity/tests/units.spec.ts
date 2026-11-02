@@ -5,6 +5,7 @@
 
 import { describe, expect, it } from 'vitest'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
+import { SessionSeq } from '@deepseek-ai/dsh-session'
 import {
   applyMissionChange,
   decodeMissionChange,
@@ -81,11 +82,11 @@ describe('strict durable decoding', () => {
   })
 
   it('folds a session log while ignoring unrelated events', () => {
-    const events = [
-      { type: 'turn/start', seq: 0, time: 1, data: {} },
-      { type: 'mission/change', seq: 1, time: 1, data: change(snapshot()) },
-      { type: 'turn/end', seq: 2, time: 2, data: {} },
-    ] as unknown as SessionEvent[]
+    const events: SessionEvent[] = [
+      { type: 'turn/start', seq: SessionSeq(0), time: 1, data: { turn: 1 } },
+      { type: 'mission/change', seq: SessionSeq(1), time: 1, data: change(snapshot()) },
+      { type: 'turn/end', seq: SessionSeq(2), time: 2, data: { turn: 1, reason: { kind: 'completed' } } },
+    ]
     const state = foldMission(events)
     expect(state.mission).toMatchObject({ id: 'mission-one', revision: 1 })
     expect(foldMission([]).mission).toBeUndefined()

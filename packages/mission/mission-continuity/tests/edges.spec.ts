@@ -7,7 +7,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import { SessionId } from '@deepseek-ai/dsh-session'
+import { SessionId, SessionSeq } from '@deepseek-ai/dsh-session'
 import { missionProjectionDefinition, MissionService, resolveConfig } from '../src/index.ts'
 import type { RecoveryRecord } from '../src/index.ts'
 import { createAgent, mountHarness, stopHarness, tempRoot, textResponse } from './harness.ts'
@@ -340,10 +340,12 @@ describe('durable log closing', () => {
 describe('projection and fold edges', () => {
   it('records a non-error replay failure as its rendered message', () => {
     const state = missionProjectionDefinition.init()
-    const broken = {
+    const broken: Parameters<typeof missionProjectionDefinition.apply>[1] = {
       type: 'mission/change',
+      seq: SessionSeq(1),
+      time: 1,
       get data(): never { throw 'not an error' },
-    } as unknown as Parameters<typeof missionProjectionDefinition.apply>[1]
+    }
     expect(missionProjectionDefinition.apply(state, broken).failure).toBe('not an error')
   })
 })

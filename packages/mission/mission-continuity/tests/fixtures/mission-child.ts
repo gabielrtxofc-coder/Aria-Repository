@@ -100,6 +100,13 @@ if (mode === 'crash') {
   await waitForever()
 }
 
+// Activation is process-local, so the re-arm the sweep performs is only visible
+// as it happens: record every edge instead of sampling the value later, when the
+// continuation rounds may already have moved the objective on.
+const activations: string[] = []
+ctx.on('goal/activation-changed', (payload) => {
+  if (payload.goal !== undefined) activations.push(payload.goal.activation)
+})
 const report = await ctx.missions.sweep()
 const resumed = ctx.agents.get(session)
 if (resumed === undefined) throw new Error('recovery did not resume the session')
@@ -111,7 +118,13 @@ process.stdout.write(`${JSON.stringify({
   interruption: mission?.interruption?.kind,
   objective: ctx.goals.get(resumed)?.objective,
   activation: ctx.goals.get(resumed)?.activation,
+  activations,
   requests: adapter.requests.length,
-  notices: adapter.requests.filter(request => requestText(request).includes('<mission_recovery ')).length,
+  // One notice, not one request: the same notice rides in every later request of
+  // the recovered conversation, so count the distinct attempts it announces.
+  notices: new Set(adapter.requests.flatMap((request) => {
+    const match = /<mission_recovery mission="[^"]+" attempt="(\d+)\//.exec(requestText(request))
+    return match?.at(1) === undefined ? [] : [match.at(1)]
+  })).size,
 })}\n`)
 process.exit(0)
