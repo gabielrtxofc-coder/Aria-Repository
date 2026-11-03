@@ -17,8 +17,17 @@
  * - `authorize`: boot, act as the human who read the report, clear the recorded
  *   authorization, and sweep. The mission must resume once, tell the model which
  *   calls are unknown, and never re-run the tool by itself.
+ * - `authorize-quiet`: the same human path, then wait until the objective has
+ *   started its next automatic round and hit its own round limit. A resumed
+ *   mission keeps running its ordinary rounds, so this mode turns the traffic
+ *   after recovery into a fact the report observes instead of one it races.
  *
- * Usage: mission-uncertain-child.ts <crash|held|authorize> <overlay.patch.yml>
+ * Every reporting mode also counts the durable recovery notices in the stored
+ * session log, which is the quantity "one interruption, one recovery" is about:
+ * a resumed mission legitimately issues further model requests for its next
+ * round, but only a recovery writes a notice.
+ *
+ * Usage: mission-uncertain-child.ts <crash|held|authorize|authorize-quiet> <overlay.patch.yml>
  */
 
 import { readFileSync } from 'node:fs'
@@ -31,8 +40,11 @@ import type {} from '../../src/index.ts'
 import { bootProductionProfile } from '../../../../test-support/loader-smoke/tests/fixtures/production-profile.ts'
 
 const [mode, overlay] = process.argv.slice(2)
-if ((mode !== 'crash' && mode !== 'held' && mode !== 'authorize') || overlay === undefined) {
-  throw new Error('usage: mission-uncertain-child.ts <crash|held|authorize> <overlay.patch.yml>')
+if ((mode !== 'crash' && mode !== 'held' && mode !== 'authorize' && mode !== 'authorize-quiet')
+  || overlay === undefined) {
+  throw new Error(
+    'usage: mission-uncertain-child.ts <crash|held|authorize|authorize-quiet> <overlay.patch.yml>',
+  )
 }
 
 const OBJECTIVE = 'finish the irreversible migration'
@@ -110,6 +122,28 @@ if (mode === 'crash') {
   await waitForever()
 }
 
+/**
+ * Count model-visible recovery notices in one durable session log, read through
+ * the persistence backend so the fixture never parses an artifact format.
+ * @param ctx - booted composition providing session persistence.
+ * @param sessionId - session whose stored log to read.
+ * @returns how many user messages are recovery notices.
+ */
+async function countNotices(ctx: Context, sessionId: SessionId): Promise<number> {
+  const handle = await ctx.sessionPersistence.open(sessionId, 'read')
+  try {
+    const { events } = await handle.read(0)
+    return events.filter((event) => {
+      if (event.type !== 'user/message') return false
+      const data = event.data as { content?: readonly { type?: string; text?: string }[] }
+      const first = data.content?.find(block => block.type === 'text')?.text ?? ''
+      return first.startsWith('<mission_recovery')
+    }).length
+  } finally {
+    await handle.close()
+  }
+}
+
 /** The message log the model actually saw, to prove the notice named the call. */
 const requests = (): string[] => {
   const log = process.env['MISSION_MOCK_LOG']
@@ -133,6 +167,7 @@ if (mode === 'held') {
     rows: await ctx.missions.ledger.list(),
     attempts: mission?.attempts,
     authorization: mission?.authorization,
+    notices: await countNotices(ctx, sessionId),
     requests: requests().length,
     effects: effectRecords(),
   })}\n`)
@@ -150,7 +185,23 @@ const authorizationBefore = pending.authorization
 const uncertainBefore = ctx.missions.uncertainOperations(agent)
 await ctx.missions.resume(agent, { id: pending.id, revision: pending.revision })
 const report = await ctx.missions.sweep()
+// Read the row the recovery just wrote before the mission's own next round can
+// move it: "what the recovery produced" exists only until that round starts.
+const rowsAfterResume = await ctx.missions.ledger.list()
 await waitUntil(() => requests().length > 0, 'the recovered model request')
+if (mode === 'authorize-quiet') {
+  // A resumed mission keeps running the objective's ordinary rounds. Waiting for
+  // the second model request *and* the objective's own round limit makes the
+  // traffic and the ledger after recovery facts this report observes, so the
+  // proof cannot race the next round.
+  const deadline = Date.now() + 45_000
+  for (;;) {
+    const rows = await ctx.missions.ledger.list()
+    if (requests().length >= 2 && rows.some(row => row.lastError?.code === 'round-limit')) break
+    if (Date.now() > deadline) throw new Error('timed out waiting for the objective to reach its round limit')
+    await new Promise(resolve => setTimeout(resolve, 100))
+  }
+}
 await ctx.sessions.flush(agent.session)
 const after = ctx.missions.get(agent)
 process.stdout.write(`${JSON.stringify({
@@ -162,6 +213,8 @@ process.stdout.write(`${JSON.stringify({
   attempts: after?.attempts,
   authorization: after?.authorization,
   report,
+  rowsAfterResume,
+  notices: await countNotices(ctx, sessionId),
   requests: requests(),
   effects: effectRecords(),
   rows: await ctx.missions.ledger.list(),

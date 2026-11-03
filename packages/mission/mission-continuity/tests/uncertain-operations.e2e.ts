@@ -36,7 +36,7 @@ afterEach(() => {
 
 /** Start one process booting the shipped headless profile over the shared home. */
 function start(
-  mode: 'crash' | 'held' | 'authorize',
+  mode: 'crash' | 'held' | 'authorize' | 'authorize-quiet',
   home: string,
   sessionId: string | undefined,
   mockMode: 'tool-call' | 'answer',
@@ -123,9 +123,12 @@ describe('an interrupted external operation', () => {
       expect(report['attempts']).toBe(1)
       expect(report['authorization']).toBeUndefined()
       expect(report['report']).toMatchObject({ resumed: 1 })
-      // The recovery notice tells the model the truth about the call.
+      // The recovery notice tells the model the truth about the call. It is one
+      // durable notice, and the first request the model saw — the mission then
+      // keeps running the objective's ordinary rounds, so the raw request count
+      // is not fixed and asserting it made this proof race the next round.
+      expect(report['notices']).toBe(1)
       const requests = report['requests'] as string[]
-      expect(requests).toHaveLength(1)
       expect(requests[0]).toContain('<mission_recovery')
       expect(requests[0]).toContain('external_effect')
       expect(requests[0]).toContain('outcome is unknown')
@@ -133,7 +136,12 @@ describe('an interrupted external operation', () => {
       // exactly the one effect the crashed process produced.
       expect(report['effects']).toHaveLength(1)
       expect((await readFile(effectFile, 'utf8')).trim().split('\n')).toHaveLength(1)
-      expect(report['rows']).toMatchObject([{ state: 'armed', attempts: 1 }])
+      // What the recovery itself wrote, read before the objective's next round
+      // can move the row; the round's own outcome is asserted separately below.
+      expect(report['rowsAfterResume']).toMatchObject([{ state: 'armed', attempts: 1 }])
+      const rows = report['rows'] as { state: string; attempts: number }[]
+      expect(rows).toHaveLength(1)
+      expect(rows[0]).toMatchObject({ attempts: 1 })
     } finally {
       await rm(home, { recursive: true, force: true })
     }
@@ -175,11 +183,63 @@ describe('an interrupted external operation', () => {
       expect((await authorized.exited).code).toBe(0)
       expect(report['uncertainBefore']).toEqual([{ callId: 'call-external-effect', name: 'external_effect' }])
       expect(report['report']).toMatchObject({ resumed: 1 })
+      // One interruption, one recovery: exactly one durable notice, which is
+      // what the model read first. Later requests are the mission's own rounds.
+      expect(report['notices']).toBe(1)
       const requests = report['requests'] as string[]
-      expect(requests).toHaveLength(1)
       expect(requests[0]).toContain('outcome is unknown')
       expect(report['effects']).toEqual([])
       expect(await readFile(effectFile, 'utf8').catch(() => '')).toBe('')
+    } finally {
+      await rm(home, { recursive: true, force: true })
+    }
+  }, 300_000)
+
+  it('keeps exactly one recovery notice when the objective runs its next round', async () => {
+    // The failure this test guards: after the human clears the doubt, the
+    // mission continues its ordinary rounds, so a second model request can
+    // legitimately follow the recovery. Counting requests made that a race —
+    // observed once in the compiled lane as "expected [ …(2) ] to have a length
+    // of 1 but got 2". This stage waits for the second request and the
+    // objective's round limit, so that traffic is present every time, and
+    // asserts the invariant that does hold: one interruption produces exactly
+    // one recovery notice.
+    const home = await mkdtemp(join(tmpdir(), 'mission-uncertain-rounds-'))
+    try {
+      const crash = start('crash', home, undefined, 'tool-call', 'before')
+      const ready = await crash.waitForLine('ready')
+      expectLaneEntry(ready['missionEntry'], 'crash stage')
+      const sessionId = String(ready['sessionId'])
+      expect((await crash.exited).signal).toBe('SIGKILL')
+
+      // The `held` boot is part of the scenario: without it the mission is still
+      // armed, and the startup sweep would resume it on its own.
+      const held = start('held', home, sessionId, 'answer')
+      const heldReport = await held.waitForLine('report')
+      expect(heldReport['requests']).toBe(0)
+      expect((await held.exited).code).toBe(0)
+
+      const authorized = start('authorize-quiet', home, sessionId, 'answer')
+      const report = await authorized.waitForLine('report')
+      expectLaneEntry(report['missionEntry'], 'authorize stage')
+      expect((await authorized.exited).code).toBe(0)
+
+      // The condition that used to fail the assertion is present here by
+      // construction: the objective's second round ran.
+      const requests = report['requests'] as string[]
+      expect(requests.length).toBeGreaterThanOrEqual(2)
+      // Yet there is one recovery, one attempt, one row, and one notice.
+      expect(report['report']).toMatchObject({ resumed: 1 })
+      expect(report['attempts']).toBe(1)
+      expect(report['notices']).toBe(1)
+      expect(requests[0]).toContain('<mission_recovery')
+      expect(requests[0]).toContain('outcome is unknown')
+      const rows = report['rows'] as { attempts: number; state: string; lastError?: { code: string } }[]
+      expect(rows).toHaveLength(1)
+      expect(rows[0]).toMatchObject({ attempts: 1, state: 'held', lastError: { code: 'round-limit' } })
+      // Recovery never re-ran the interrupted call.
+      expect(report['effects']).toEqual([])
+      expect(await readFile(join(home, 'external-effects.jsonl'), 'utf8').catch(() => '')).toBe('')
     } finally {
       await rm(home, { recursive: true, force: true })
     }
