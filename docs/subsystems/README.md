@@ -13,6 +13,7 @@ One page per subsystem of the DeepSeek Harness: what it is, the data structures 
 | [scope.md](scope.md) | scoped registration identity, dispatch carriers, and the owned `Scope` context |
 | [typert.md](typert.md) | Remote invocation descriptors, lookup/Context declarations, Typert registries, and the Host Gateway/Client API boundaries |
 | [goal.md](goal.md) | persisted goal identity, lifecycle snapshots, activation, change records, and round attribution |
+| [mission-continuity.md](mission-continuity.md) | durable mission records, the reconciled discovery index, the recovery decision table, and the composition seam recovery asks for a provider and model |
 | [schedule.md](schedule.md) | Host-owned reminder records, durable transitions, active and ended views, and ordinary-conversation delivery |
 | [todo.md](todo.md) | the todo package's whole-list item type, durable event ownership, and projection |
 | [deliverables.md](deliverables.md) | what a turn hands to the user: `PresentedFile` deliveries from `present` and the Host-served `WorkspaceChangesSummary` of changed files from git snapshots |

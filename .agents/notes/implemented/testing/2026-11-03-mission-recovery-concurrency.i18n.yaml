@@ -1,0 +1,31 @@
+# Bilingual-pair consistency record for 2026-11-03-mission-recovery-concurrency.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/testing/2026-11-03-mission-recovery-concurrency.md
+/agent-note-concurrent-mission-recovery-one-session-owner-no-crash-path:
+  en: eb4e3a7f84aa9781
+  zh: 50bc122376419bbc
+/agent-note-concurrent-mission-recovery-one-session-owner-no-crash-path/problem:
+  en: 3cd87058b5dbdd5b
+  zh: 618509f19730d0d8
+/agent-note-concurrent-mission-recovery-one-session-owner-no-crash-path/decision:
+  en: 8c41f4749614c78f
+  zh: 2f0431dc539398cd
+/agent-note-concurrent-mission-recovery-one-session-owner-no-crash-path/decision/where-the-error-comes-from:
+  en: cec840fd5325a7cc
+  zh: bd6f63b582a01dbf
+/agent-note-concurrent-mission-recovery-one-session-owner-no-crash-path/decision/why-a-production-process-does-not-die-from-it:
+  en: 2f0280d940fe46e0
+  zh: 8b5e1fd875dd9fce
+/agent-note-concurrent-mission-recovery-one-session-owner-no-crash-path/decision/the-one-unguarded-caller-and-why-it-is-not-production:
+  en: 52778de8568bbe96
+  zh: f74dec38801ab9cb
+/agent-note-concurrent-mission-recovery-one-session-owner-no-crash-path/evidence:
+  en: d42de4fac0ec0a00
+  zh: a2cafc88843b35e2
+/agent-note-concurrent-mission-recovery-one-session-owner-no-crash-path/alternatives-considered:
+  en: a93188a96cb2ff99
+  zh: bad7e56fc563b05c
+/agent-note-concurrent-mission-recovery-one-session-owner-no-crash-path/consequences:
+  en: d3e5669a3b1cbe0a
+  zh: 00b84d8fb640fbc5

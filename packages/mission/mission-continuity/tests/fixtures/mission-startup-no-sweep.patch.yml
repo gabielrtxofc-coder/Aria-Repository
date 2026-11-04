@@ -1,0 +1,29 @@
+# The same keyless overlay with automatic recovery explicitly disabled: the
+# composition must still start, and the interrupted mission must stay untouched.
+- id: headless-startup
+  disabled: true
+
+- id: headless-runner
+  disabled: true
+
+- id: llm-deepseek
+  disabled: true
+
+- id: llm-pi-ai
+  disabled: true
+
+- id: agent-default-model
+  config:
+    provider: mission-mock
+    model: mission-mock
+
+- id: agent-instructions
+  disabled: true
+
+- id: mission-continuity
+  config:
+    sweepOnStartup: false
+
+- insert:
+    - id: mission-mock-llm
+      name: './mission-mock-llm.ts'

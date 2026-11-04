@@ -861,6 +861,16 @@ function builtBinSmokeGate(needs: string[] = ['build']): Gate {
     'vitest.e2e.config.ts',
     'apps/cli/tests/profiles/headless/tests/keyless-smoke.e2e.ts',
     'apps/cli/tests/profiles/headless/tests/source-tool.built.e2e.ts',
+    // Keyless startup proofs: real profile boots over one durable home, the
+    // first SIGKILLed, the second recovering on its own. This lane sets
+    // DSH_EXAMPLE_MODE=lib, so the children run under plain Node and load the
+    // composition from built lib/ — each one reports the entry it resolved and
+    // the proofs assert the lane, so being listed here is not the evidence.
+    'packages/mission/mission-continuity/tests/mission-startup.e2e.ts',
+    // Interrupted external operation: a simulated non-idempotent tool whose
+    // effect outlives a SIGKILL. Recovery must stop rather than repeat it, and
+    // the same lane check applies.
+    'packages/mission/mission-continuity/tests/uncertain-operations.e2e.ts',
     'apps/cli/tests/built-bin.e2e.ts',
     'apps/desktop/tests/acl-skill.built.e2e.ts',
     'packages/host/directory-picker-native/tests/built-worker.e2e.ts',

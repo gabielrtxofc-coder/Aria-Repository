@@ -76,6 +76,7 @@ const GROUP_ORDER = [
   'core',
   'typert',
   'goal',
+  'mission',
   'experimental',
   'process',
   'bash',
@@ -641,6 +642,14 @@ const SERVICE_ROLES: ServiceRole[] = [
     title: 'Same-session goal domain',
     mode: 'core',
     note: 'Folds revisioned objective state from the session log and keeps live continuation activation process-local.',
+  },
+  {
+    key: 'missions',
+    pkg: 'mission-continuity',
+    title: 'Durable mission records and autonomous recovery',
+    mode: 'service',
+    consumers: ['goal-round-driver'],
+    note: 'Commits mission records to the session log, reconciles a discovery index against it, and resumes interrupted missions after a restart without a new user message.',
   },
   {
     key: 'ssh',
