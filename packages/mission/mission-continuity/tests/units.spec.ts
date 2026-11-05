@@ -11,6 +11,7 @@ import {
   decodeMissionChange,
   emptyMissionFoldState,
   foldMission,
+  MAX_DIAGNOSTIC_LENGTH,
   renderMissionRecoveryNotice,
 } from '../src/index.ts'
 import type {
@@ -176,5 +177,45 @@ describe('recovery notice', () => {
     expect(crowded).toContain('- and 2 more entries')
     expect(crowded).toContain('- bash (call-7)')
     expect(crowded).not.toContain('- bash (call-8)')
+    // The bounded list says how many recorded doubts it could not name.
+    expect(crowded).toContain('- and 2 more recorded calls with unknown outcomes')
+  })
+
+  it('names a doubt the bounded tracker could not list', () => {
+    const text = noticeText({
+      mission: snapshot({ revision: 2, attempts: 1 }),
+      objective: 'overflowed mission',
+      attempt: 1,
+      steps: [],
+      uncertainOperations: operations,
+      uncertainOverflow: 3,
+    })
+    expect(text).toContain('Recorded tool calls whose outcome is unknown:')
+    expect(text).toContain('- bash (call-1)')
+    expect(text).toContain('- and 3 more recorded calls with unknown outcomes')
+  })
+})
+
+describe('bounded hold diagnostics', () => {
+  /**
+   * Regression (preexisting): the unknown-outcome diagnostic listed every call
+   * name, and `authorize()` rejects a message over the durable diagnostic limit.
+   * One wide fan-out therefore threw inside the claim, and the mission was held
+   * under a generic failure code instead of the authorization code a human has
+   * to clear — work stuck behind a doubt nobody was told how to resolve.
+   */
+  it('renders an unknown-outcome diagnostic the durable record accepts', async () => {
+    const { uncertainMessage } = await import('../src/supervisor.ts')
+    const message = uncertainMessage(
+      Array.from({ length: 40 }, () => ({ name: 'a_very_long_tool_name_that_would_not_fit', callId: 'id' })),
+      7,
+    )
+    expect(message.length).toBeLessThanOrEqual(MAX_DIAGNOSTIC_LENGTH)
+    // The count is never trimmed: it is what a human acts on.
+    expect(message).toContain('47 recorded')
+    expect(message).toContain('Verify the external state')
+    // A single name still fits, and no name means the count stands alone.
+    expect(uncertainMessage([{ name: 'bash', callId: 'c' }], 0)).toContain('(bash)')
+    expect(uncertainMessage([], 3)).toContain('3 recorded')
   })
 })

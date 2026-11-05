@@ -87,6 +87,40 @@ function recordUnknownCall(agent: Agent): void {
   }, { surfaceOp: 'append' })
 }
 
+/**
+ * Drive the wider shape the pending-call bound used to lose: more calls in
+ * flight than the tracker retained, each ending in an unknown outcome. A wide
+ * fan-out is ordinary (the agent loop dispatches up to ten calls at once), so
+ * this is the same doubt as {@link recordUnknownCall}, only fanned out.
+ * @param agent - owning live agent.
+ * @param count - how many calls the step started.
+ */
+function recordUnknownCalls(agent: Agent, count: number): void {
+  agent.session.append('turn/start', { turn: 1 })
+  agent.session.append('step/start', { turn: 1, step: 1 })
+  for (let index = 0; index < count; index += 1) {
+    agent.session.append('tool/call', {
+      turn: 1,
+      step: 1,
+      callId: ToolCallId(`call-${index}`),
+      name: 'external_effect',
+      arguments: '{}',
+    })
+  }
+  for (let index = 0; index < count; index += 1) {
+    agent.session.append('tool/result', {
+      turn: 1,
+      step: 1,
+      message: createToolResultMessage({
+        callId: ToolCallId(`call-${index}`),
+        content: [{ type: 'text', text: 'the tool did not report back' }],
+        isError: true,
+      }),
+      error: { name: 'ToolOutcomeUnknownError', code: TOOL_OUTCOME_UNKNOWN },
+    }, { surfaceOp: 'append' })
+  }
+}
+
 /** Absolute path of one session's durable artifact. */
 async function findArtifact(root: string, sessionId: string): Promise<string> {
   const entries = await readdir(join(root, 'sessions'), { recursive: true, withFileTypes: true })
@@ -524,5 +558,44 @@ describe('single recovery per interruption', () => {
     const second = await mount(root, [textResponse('continued')], { sweepOnStartup: false })
     expect((await second.ctx.missions.sweep()).considered).toBe(0)
     expect(second.ctx.agents.get(SessionId('mission-session'))).toBeUndefined()
+  })
+})
+
+describe('wide fan-out with unknown outcomes', () => {
+  /**
+   * Regression (preexisting): the pending-call window was smaller than one
+   * step's fan-out, so a step that started more calls than the window held left
+   * its earliest calls untracked. Their unknown-outcome results matched nothing,
+   * the mission looked doubt-free, and the startup sweep resumed work past an
+   * external effect nobody had confirmed.
+   */
+  it('holds the mission instead of resuming past calls it could not track', async () => {
+    const { root, cleanup } = await tempRoot('dsh-mission-fanout-')
+    cleanups.push(cleanup)
+    const harness = await mount(root, [textResponse('should not run')], { sweepOnStartup: false })
+    const agent = await createAgent(harness)
+    await harness.ctx.missions.start(agent, { objective: 'wide fan-out', completionCriteria: ['safe'] })
+    recordUnknownCalls(agent, 24)
+
+    // Every one of the 24 calls is a recorded doubt, and none of them is lost:
+    // the listed window is bounded, the remainder is counted.
+    const listed = harness.ctx.missions.uncertainOperations(agent)
+    expect(listed).toHaveLength(22)
+    expect(harness.ctx.missions.uncertainOverflow(agent)).toBe(2)
+
+    const report = await harness.ctx.missions.sweep()
+    expect(report).toMatchObject({ considered: 1, resumed: 0, held: 1 })
+    const row = (await harness.ctx.missions.ledger.list())[0]
+    expect(row?.lastError?.code).toBe(UNCERTAIN_OPERATIONS)
+    // The count is what a human acts on, so it always fits the durable
+    // diagnostic; the names are what the bound trims.
+    expect(row?.lastError?.message).toContain('24 recorded')
+    expect(row?.lastError?.message).toContain('external_effect')
+    // Recovery never spent an attempt on a doubt it could not resolve.
+    expect(row?.attempts).toBe(0)
+    expect(harness.ctx.missions.get(agent)?.authorization?.code).toBe(UNCERTAIN_OPERATIONS)
+    // No recovery notice was queued for work that must wait for a human.
+    await harness.ctx.sessions.flush(agent.session)
+    expect(countMissionNotices(await readSessionArtifact(root))).toBe(0)
   })
 })

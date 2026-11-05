@@ -4,7 +4,7 @@
  * blocker instead of claiming the mission advanced.
  */
 
-import { readFile, writeFile } from 'node:fs/promises'
+import { readFile, readdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Context } from '@deepseek-ai/cordis'
@@ -95,7 +95,14 @@ describe('persistence failures', () => {
 })
 
 describe('malformed durable records', () => {
-  it('refuses to open a corrupted discovery row instead of dropping it silently', async () => {
+  /**
+   * Regression (preexisting): the discovery index is a declared hint — the
+   * session log owns mission state and startup rebuilds any row the logs
+   * justify — but one damaged row used to reject `open()` and take the whole
+   * composition down with every mission intact on disk. The row is now moved
+   * aside, the boot proceeds, and the mission is still recovered from its log.
+   */
+  it('survives one corrupted discovery row and still recovers the mission from its log', async () => {
     const { root, cleanup } = await tempRoot('dsh-mission-corrupt-')
     cleanups.push(cleanup)
     const first = await mountHarness({
@@ -111,16 +118,27 @@ describe('malformed durable records', () => {
     contexts.splice(contexts.indexOf(first.ctx), 1)
 
     // Corrupt the stored row the way an interrupted write would.
-    const path = join(root, 'storages', 'mission_continuity.json')
-    const stored = JSON.parse(await readFile(path, 'utf8')) as {
-      tables: Record<string, Record<string, Record<string, unknown>>>
-    }
-    const table = stored.tables['recoveries']!
-    const key = Object.keys(table)[0]!
-    table[key] = { ...table[key]!, state: 'sometimes' }
-    await writeFile(path, JSON.stringify(stored))
+    const rowPath = join(root, 'storages', 'mission_continuity', 'recoveries')
+    const [file] = await readdir(rowPath)
+    const path = join(rowPath, file!)
+    const document = JSON.parse(await readFile(path, 'utf8')) as { record: Record<string, unknown> }
+    document.record['state'] = 'sometimes'
+    await writeFile(path, JSON.stringify(document))
 
-    await expect(mountHarness({ root, script: [], config: { sweepOnStartup: false } }))
-      .rejects.toThrow(/domain 'mission_continuity': stored record/)
+    const second = await mountHarness({
+      root,
+      script: [textResponse('recovered from the log')],
+      driver: true,
+      config: { sweepOnStartup: true },
+    })
+    contexts.push(second.ctx)
+    // The damaged hint is gone, but the log still proves the mission: the
+    // rebuild restores the row and the startup sweep recovers it.
+    expect((await second.ctx.missions.ledger.list())[0]).toMatchObject({ state: 'armed', attempts: 1 })
+    const recovered = second.ctx.agents.get(agent.session.id)
+    expect(recovered).toBeDefined()
+    expect(second.ctx.missions.get(recovered!)?.attempts).toBe(1)
+    // The damaged document is kept for inspection instead of being deleted.
+    expect(await readdir(rowPath)).toContainEqual(expect.stringMatching(/\.bak\./))
   })
 })

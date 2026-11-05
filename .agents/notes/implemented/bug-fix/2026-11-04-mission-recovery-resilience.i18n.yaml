@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-11-04-mission-recovery-resilience.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-11-04-mission-recovery-resilience.md
+/agent-note-mission-recovery-survives-a-damaged-hint-a-bounded-sweep-and-a-wide-fan-out:
+  en: a0ec11978ee34a0e
+  zh: 0dbaa98c7dde8943
+/agent-note-mission-recovery-survives-a-damaged-hint-a-bounded-sweep-and-a-wide-fan-out/problem:
+  en: c03aa1f604a0e129
+  zh: 4ae286322c9bbdff
+/agent-note-mission-recovery-survives-a-damaged-hint-a-bounded-sweep-and-a-wide-fan-out/decision:
+  en: 3776bdc4d0a3bf73
+  zh: 115e0d084af8feab
+/agent-note-mission-recovery-survives-a-damaged-hint-a-bounded-sweep-and-a-wide-fan-out/alternatives-considered:
+  en: fe4ae61e2f413f6a
+  zh: d05433ce5326e6fd
+/agent-note-mission-recovery-survives-a-damaged-hint-a-bounded-sweep-and-a-wide-fan-out/consequences:
+  en: f49435d592548b10
+  zh: 228d4d2b4572f3ca

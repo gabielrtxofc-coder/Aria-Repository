@@ -44,7 +44,7 @@ Configuration:
 | --- | --- | --- |
 | `sweepOnStartup` | `true` | Run the recovery sweep while the composition starts. |
 | `defaultMaxRecoveryAttempts` | `3` | Attempt budget for a mission started without one (1–100). |
-| `maxMissionsPerSweep` | `32` | Candidates one sweep may consider (1–1000). |
+| `maxMissionsPerSweep` | `32` | Candidates one sweep may consider (1–1000). Successive sweeps rotate through the index, so the bound limits one sweep's work, not which missions can be reached. |
 | `rebuildIndexOnStartup` | `true` | Rebuild missing index rows from the session logs before the startup sweep. |
 | `maxRebuildSessions` | `64` | Most stored sessions one rebuild reads while looking for unknown missions (1–10000). |
 
@@ -57,7 +57,7 @@ Three pieces cooperate:
 
 - **The durable record.** `mission/change` carries the complete post-mutation mission record (or a `clear` tombstone). It is log-only: no projection rebuild, fork, or resume may treat a partly interpreted mission as current, and the fold rejects any change that cannot follow the accumulated state — a mutation without a current mission, an identity change, a skipped revision, a backward checkpoint, or a decreasing attempt count.
 - **The discovery index.** One storage domain table maps `missionId → { sessionId, goalId, revision, attempts, state, lastError }`. `state` is `armed` only while autonomous recovery may claim the mission without human action. Every write is followed by reconciliation against the log; a row that disagrees with its session is settled, not trusted. The index is never the source of truth, so startup reads the logs of the sessions it does not mention and rebuilds the row each durable record justifies — bounded by `maxRebuildSessions`, skipping missions whose objective already completed, and failing soft when the medium is unreadable.
-- **The supervisor.** `sweep()` reads armed rows, resolves each session to a live Agent (an existing one means the turn failed; a resumed one means the process went away), and claims the mission. Claiming settles finished missions, holds missions that are disabled, waiting for approval, carrying an interrupted call whose outcome is unknown, or missing their objective, records exhaustion as an objective blocker, and otherwise consumes one attempt, queues the recovery notice, and re-arms the objective. Sweeps are single-flight and bounded, and disposal stops claiming and releases every held Agent.
+- **The supervisor.** `sweep()` reads armed rows, resolves each session to a live Agent (an existing one means the turn failed; a resumed one means the process went away), and claims the mission. Claiming settles finished missions, holds missions that are disabled, waiting for approval, carrying an interrupted call whose outcome is unknown, or missing their objective, records exhaustion as an objective blocker, and otherwise consumes one attempt, queues the recovery notice, and re-arms the objective. Sweeps are single-flight, bounded per call, and rotating: each sweep starts where the previous one stopped and wraps once, so every armed mission is reached within `ceil(rows / maxMissionsPerSweep)` sweeps even when the leading candidates are missions this supervisor already recovered. Disposal stops claiming and releases every held Agent.
 
 Two rules keep one interruption from buying two recoveries. A candidate whose durable record still reads exactly like the state this supervisor already paid an attempt for is reported as `skipped`: a repeated sweep cannot consume a second attempt, queue a second notice, or resume work the process already owns. A candidate whose session another live instance owns is skipped too, and its row is left untouched so the owner's attempt count and notice stay the only ones that exist.
 
@@ -99,7 +99,7 @@ The notice is bounded: long step and operation lists are truncated with a count.
 - **Recovery cannot invent a route.** Without a `mission/agent-setup` answer, a resumed session fails loud and its row is held. Automatic recovery across a model change assumes the deployment keeps serving the mission's model or names a replacement.
 - **Approval stays gated.** A mission waiting for authorization is held; the sweep never resumes it.
 - **Continuation needs the goal stack.** The supervisor re-arms the objective; the loop that runs the next round is `dsh-goal-round-driver`. Without it, a resumed mission waits for the next turn.
-- **The index is not authoritative.** Deleting it loses discovery, not mission state: startup rebuilds the rows the logs justify, and a session the rebuild cannot reach can still be resumed by hand.
+- **The index is not authoritative.** Deleting it loses discovery, not mission state: startup rebuilds the rows the logs justify, and a session the rebuild cannot reach can still be resumed by hand. The index is declared as disposable derived data (`per-record`, `invalidRecords: 'backup-and-skip'`), so one unreadable hint is moved aside with its cause logged instead of rejecting the domain and stopping the composition; a truncated index *file* still fails loudly at the storage backend, and the logs remain the way back.
 
 <a id="dev-note"></a>
 ## Dev Note

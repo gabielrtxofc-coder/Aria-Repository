@@ -124,8 +124,19 @@ export interface ResolvedConfig {
   maxRebuildSessions: number
 }
 
-/** Most pending or uncertain calls retained by the projection. */
-const MAX_TRACKED_CALLS = 16
+/**
+ * Most pending calls the projection tracks for one session.
+ *
+ * The tracker must hold one whole step's fan-out, not one arbitrary slice of
+ * it: the agent loop dispatches up to its `maxParallelToolCalls` tool calls at
+ * once (10 by default), so a bound below that drops calls that are still
+ * legitimately in flight. A dropped pending call makes its later
+ * `TOOL_OUTCOME_UNKNOWN` result invisible, and recovery then resumes a mission
+ * past a call whose external effect nobody confirmed. The bound is 2x the
+ * shipped fan-out plus a margin, and unpaired calls beyond it are reported (see
+ * {@link MissionProjectionState.uncertainOverflow}) instead of being dropped.
+ */
+const MAX_TRACKED_CALLS = 22
 
 /** Mission id schema shared by the projection and its client view. */
 const missionIdSchema = zod.string().min(1).max(200).transform(MissionId)
@@ -186,6 +197,7 @@ const missionProjectionStateSchema: ZodType<MissionProjectionState> = zod.object
   failure: zod.string().min(1).nullable(),
   pendingCalls: zod.array(trackedCallSchema),
   uncertainOperations: zod.array(trackedCallSchema),
+  uncertainOverflow: zod.number().int().positive().optional(),
 }).strict()
 
 /** Client view: the current mission record, or null before start and after clear. */
@@ -209,12 +221,51 @@ function projectionState(state: MissionFoldState, tracked: MissionProjectionStat
     failure: tracked.failure,
     pendingCalls: tracked.pendingCalls,
     uncertainOperations: tracked.uncertainOperations,
+    ...tracked.uncertainOverflow === undefined ? {} : { uncertainOverflow: tracked.uncertainOverflow },
   }
 }
 
-/** Append one tracked call, keeping the collection bounded and unique. */
-function trackCall(calls: readonly UncertainOperation[], call: UncertainOperation): readonly UncertainOperation[] {
-  return [...calls.filter(entry => entry.callId !== call.callId), call].slice(-MAX_TRACKED_CALLS)
+/** The bounded collection plus the calls it had to drop. */
+interface TrackResult {
+  /** Calls retained, newest last. */
+  readonly kept: readonly UncertainOperation[]
+  /** Calls displaced by the bound, oldest first. */
+  readonly displaced: readonly UncertainOperation[]
+}
+
+/**
+ * Append one tracked call, keeping the collection bounded and unique.
+ * @param calls - calls tracked before this event.
+ * @param call - call to append.
+ * @returns the bounded collection and whatever the bound displaced.
+ */
+function trackCall(calls: readonly UncertainOperation[], call: UncertainOperation): TrackResult {
+  const appended = [...calls.filter(entry => entry.callId !== call.callId), call]
+  return { kept: appended.slice(-MAX_TRACKED_CALLS), displaced: appended.slice(0, -MAX_TRACKED_CALLS) }
+}
+
+/**
+ * Fold one unknown-outcome call into the state. The bounded list is
+ * `MAX_TRACKED_CALLS` long, so an unknown outcome that has to displace a
+ * recorded one is counted instead of forgotten: recovery treats a non-zero
+ * overflow exactly like a listed call.
+ * @param state - state before the result.
+ * @param call - call whose committed result reported an unknown outcome.
+ * @returns the state carrying the doubt.
+ */
+function trackUncertain(state: MissionProjectionState, ...calls: readonly UncertainOperation[]): MissionProjectionState {
+  let retained: readonly UncertainOperation[] = state.uncertainOperations
+  let overflow = state.uncertainOverflow ?? 0
+  for (const call of calls) {
+    const tracked = trackCall(retained, call)
+    retained = tracked.kept
+    overflow += tracked.displaced.length
+  }
+  return {
+    ...state,
+    uncertainOperations: retained,
+    ...overflow === 0 ? {} : { uncertainOverflow: overflow },
+  }
 }
 
 /**
@@ -239,7 +290,11 @@ function applyMissionProjection(state: MissionProjectionState, event: SessionEve
     case 'tool/call': {
       const call = { callId: event.data.callId, name: event.data.name }
       if (state.uncertainOperations.some(entry => entry.callId === call.callId)) return state
-      return { ...state, pendingCalls: trackCall(state.pendingCalls, call) }
+      const tracked = trackCall(state.pendingCalls, call)
+      // A call displaced from the window is still open: it has no committed
+      // result yet, so whether its external effect happened is unknown. Forget
+      // it and recovery would resume past it; record it as a doubt instead.
+      return trackUncertain({ ...state, pendingCalls: tracked.kept }, ...tracked.displaced)
     }
     case 'tool/result': {
       const callId = event.data.message.source.callId
@@ -247,11 +302,7 @@ function applyMissionProjection(state: MissionProjectionState, event: SessionEve
       if (pending === undefined) return state
       const remaining = state.pendingCalls.filter(entry => entry.callId !== callId)
       if (event.data.error?.code !== TOOL_OUTCOME_UNKNOWN) return { ...state, pendingCalls: remaining }
-      return {
-        ...state,
-        pendingCalls: remaining,
-        uncertainOperations: trackCall(state.uncertainOperations, pending),
-      }
+      return trackUncertain({ ...state, pendingCalls: remaining }, pending)
     }
     default:
       return state
@@ -469,6 +520,19 @@ export class MissionService extends Service {
   uncertainOperations(agent: Agent): readonly UncertainOperation[] {
     this.assertLive(agent)
     return this.state(agent).uncertainOperations
+  }
+
+  /**
+   * Unknown-outcome calls the bounded tracker could not list. Non-zero means the
+   * doubt is at least as serious as a listed call: recovery must not resume past
+   * it without a human, so callers that gate on
+   * {@link uncertainOperations} must gate on this value too.
+   * @param agent - owning live agent.
+   * @returns how many unknown-outcome calls were counted but not listed.
+   */
+  uncertainOverflow(agent: Agent): number {
+    this.assertLive(agent)
+    return this.state(agent).uncertainOverflow ?? 0
   }
 
   /**

@@ -180,6 +180,13 @@ export interface MissionProjectionState {
   readonly pendingCalls: readonly UncertainOperation[]
   /** Calls whose committed result says the outcome is unknown, oldest first. */
   readonly uncertainOperations: readonly UncertainOperation[]
+  /**
+   * Unknown-outcome calls this bounded state had to leave out, because a single
+   * step recorded more of them than the tracker retains. Present only when
+   * non-zero: recovery never resumes past an unknown outcome, so an overflow is
+   * a doubt a human must clear — it must never be silently forgettable.
+   */
+  readonly uncertainOverflow?: number | undefined
 }
 
 declare module '@deepseek-ai/dsh-session-projection/types' {
