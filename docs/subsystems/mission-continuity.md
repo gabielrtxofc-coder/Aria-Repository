@@ -88,6 +88,7 @@ An empty plan resumes the log without provider/model options and fails loud on t
 ## Known limits
 
 - A call with an unknown outcome is never re-executed by Aria, but a model may re-issue a non-idempotent call; missions record the uncertainty and ask for verification, and no exactly-once claim is made.
+- An unknown outcome holds the mission until a person acknowledges it. The acknowledgement is a watermark over the outcomes recorded at that moment, so a doubt recorded later holds the mission again, and it is folded into the session log with the mission so a rebuilt recovery index cannot grant a stale clearance.
 - Recovery is bounded by `maxMissionsPerSweep` and `defaultMaxRecoveryAttempts`; exhaustion is recorded as an objective blocker for a human.
 - A pending approval is durable; recovery resumes only after it is granted.
 

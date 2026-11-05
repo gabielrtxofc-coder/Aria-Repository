@@ -15,7 +15,8 @@ import type { Agent, AgentHandle } from '@deepseek-ai/dsh-agent'
 import type { GoalChanged, GoalView } from '@deepseek-ai/dsh-goal'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { SessionId } from '@deepseek-ai/dsh-session'
-import { MAX_DIAGNOSTIC_LENGTH, UNCERTAIN_ACKNOWLEDGED, UNCERTAIN_OPERATIONS } from './runtime.ts'
+import { MAX_DIAGNOSTIC_LENGTH, UNCERTAIN_OPERATIONS } from './runtime.ts'
+import { unacknowledgedUncertainty } from './uncertainty.ts'
 import { renderMissionRecoveryNotice } from './prompt.ts'
 import type { RecoveryRecord } from './ledger.ts'
 import type { MissionService, ResolvedConfig } from './service.ts'
@@ -307,11 +308,19 @@ export class MissionSupervisor {
     // A call that started without a durable result may or may not have changed
     // external state. Resuming would let the model repeat a destructive action
     // nobody confirmed, so recovery stops and records the doubt where a human
-    // can act on it; only a recorded decision resumes this mission.
-    const uncertain = this.service.uncertainOperations(agent)
-    const overflow = this.service.uncertainOverflow(agent)
-    if ((uncertain.length > 0 || overflow > 0) && row.lastError?.code !== UNCERTAIN_ACKNOWLEDGED) {
-      const message = uncertainMessage(uncertain, overflow)
+    // can act on it; only a recorded decision resumes this mission — and only
+    // for the doubts that decision covered, which is why the backlog is measured
+    // against the durable record instead of any note the index row may carry. A
+    // row is a hint: it is rewritten by the next mutation and rebuilt from the
+    // logs, so it cannot be what authorizes continuing past an effect nobody
+    // confirmed.
+    const backlog = unacknowledgedUncertainty(
+      this.service.uncertainOperations(agent),
+      this.service.uncertainOverflow(agent),
+      mission.uncertainAcknowledged,
+    )
+    if (backlog.count > 0) {
+      const message = uncertainMessage(backlog.operations, backlog.unlisted)
       const authorized = await this.service.authorize(
         agent,
         { id: mission.id, revision: mission.revision },

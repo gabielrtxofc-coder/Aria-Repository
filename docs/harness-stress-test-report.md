@@ -199,10 +199,56 @@ See the pull request opened from `arena/e9e19faa-aria-repository` against `main`
 ## 14. Still needs attention
 
 1. **Truncated index file** still prevents boot (`StorageError: file is not valid JSON`). A backend-level "quarantine the whole unit and start empty" path is a possible follow-up; it needs a storage-domain decision, not a mission-local patch, so it was left loud on purpose.
-2. **`uncertainOverflow` is derived state** and is not rebuilt from the log after a restart; a doubt whose log no longer justifies it disappears. This is the safe direction, but it means the counter is advisory.
+2. **`uncertainOverflow` is derived state** and is not rebuilt from the log after a restart; a doubt whose log no longer justifies it disappears. This is the safe direction, but it means the counter is advisory. (Superseded in part by §15: the *human review* of those doubts now lives in the session log with the mission, so a rebuild no longer re-grants a stale clearance; the counter itself is still derived.)
 3. **Rotation only helps explicit `sweep()` calls.** The shipped startup sweep runs once per process; a deployment with a very large index and a small `maxMissionsPerSweep` still starts only one window at boot. Either size the budget to the index or drive repeated sweeps.
 4. **No exactly-once guarantee** (documented): a model may still re-issue a non-idempotent call after verification. The external system keeps the final word.
 5. **Live-provider adversarial matrix not run** (429, quota exhausted, auth failure, malformed/incomplete stream, mid-stream interruption, context overflow). The seams exist and are unit-covered; an authorized run against a *sandboxed* provider remains to be done before production claims are made.
 6. **Repo-wide lint/typecheck gates** must be run in a full CI environment; they could not run here.
 7. **OmniRoute integration** is still unvalidated — the mission deliberately did not build a second router. The Harness's own seam (`mission/agent-setup` waterfall) is the place a router would plug in, and it is proven to *not* pick a route by itself.
 8. **Human-approval and permission seams** were verified only through unit suites; no adversarial prompt-injection run against the approval seam was performed here.
+
+---
+
+## 15. Mission 09 follow-up: the review covers what it saw, and a displaced call is only open
+
+A re-audit of this layer found one security defect and one false-doubt defect left after §4–5. Both were
+reproduced against this PR's unmodified head (`3082f280`) before either was fixed.
+
+**B-1 (critical, security).** Human acknowledgement of unknown-outcome calls was a single marker on the
+disposable discovery row (`lastError.code = 'uncertain-acknowledged'`), consulted by `supervisor.claim()` as a
+whole-gate bypass. It named and counted nothing, so a doubt recorded *after* the review never re-blocked the
+mission, and a rewrite or rebuild of the index re-granted the pardon — the record of the permission was the
+permission, in a component where the log is the authority.
+
+**L-1 (medium, false doubts).** `tool/call` recorded a doubt for every call the 22-slot window displaced — while
+the call was still merely open — and `tool/result` returned the state untouched for an identity outside the
+window, so that doubt could never be retracted. Any step holding more than 22 open calls manufactured permanent
+doubts for calls that then succeeded.
+
+**Fix.** Acknowledgement is now a monotonic watermark on the mission record itself:
+`MissionSnapshot.uncertainAcknowledged` (folded from the session log, `stateVersion: 2`), written as
+`max(previous, recorded)` by `resume()`, and rejected by `fold.ts` if any later mutation narrows it or drops it.
+The gate asks one shared pure function, `unacknowledgedUncertainty(operations, unlisted, acknowledged)`
+(`src/uncertainty.ts`), what is still outstanding; a watermark outside `[0, recorded]` clears nothing. The row
+marker is kept as a diagnostic only. Displaced calls are counted, not listed: `MissionProjectionState.pendingOverflow`
+increments on displacement and is settled by a result for an unlisted identity, and a doubt is recorded only when
+that committed result itself reports `TOOL_OUTCOME_UNKNOWN`. No second pending-call registry was added.
+
+**Verified.** mission-continuity unit 119 → 136 passing; 100% statement, branch and function coverage on every
+source file in the package (which also closes the `uncertainMessage` name-budget gap §11 left at 96.8% branch);
+e2e/SIGKILL lane 7/7; the eight regression tests added for H1/H2/C1/C2 re-run unchanged and green, including the
+`uncertain-operations` end-to-end case that asserts the post-acknowledgement notice still names the call.
+Reverting `src/` to `3082f280` turns 13 of the 17 new tests red; the four green ones are deliberate controls (a
+10-call step, "never retract a recorded unknown outcome", "an unmatched result settles nothing", and the C2
+diagnostic budget). Package `README.md`/`.zh.md`, `docs/subsystems/mission-continuity.md`/`.zh.md` (with their
+i18n sidecars re-recorded) and a decision record at
+`.agents/notes/implemented/bug-fix/2026-11-05-mission-uncertainty-acknowledgement.md`/`.zh.md` document the new
+semantics, replacing the earlier claim that "an index rebuild forgets the acknowledgement and asks again".
+
+**Not proven here.** `pnpm lint` still aborts in this sandbox (oxlint panics even on untouched files), the
+whole-workspace typecheck still OOMs, and the api-catalog freshness spec needs a 480-second project build, so the
+generated `cordis-catalog` region in `docs/subsystems/mission-continuity.*` keeps the drift §12 already recorded
+(`uncertainOverflow` still has no catalog entry). A watermark counts the most recent N doubts rather than a chosen
+set, so a partial review of a huge fan-out asks again about the oldest; a duplicate `tool/call` reusing a
+displaced identity can cost one extra review. All simulated lanes: real-provider integration is not asserted.
+
