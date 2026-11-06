@@ -914,6 +914,17 @@ test('keeps trusted preflight before token minting and required policy unconditi
   assert.ok(steps[3].includes("if: ${{ steps.preflight.outputs.legacy-automated != 'true' }}"))
 })
 
+test('derives the project token target from trusted event context', () => {
+  for (const workflow of ['issue-policy.yml', 'issue-lifecycle.yml']) {
+    const source = readFileSync(new URL(`../workflows/${workflow}`, import.meta.url), 'utf8')
+    // A literal slug here silently mints a token for another repository's
+    // Project, which is exactly how the upstream reference went stale.
+    assert.ok(!source.includes('deepseek-harness'), `${workflow} must not hardcode an upstream owner`)
+    assert.ok(source.includes('owner: ${{ github.repository_owner }}'), `${workflow} must derive the owner`)
+    assert.ok(source.includes('repositories: ${{ github.event.repository.name }}'), `${workflow} must derive the repository`)
+  }
+})
+
 test('runs trusted rollout selection with absent and present capability markers', { skip: process.platform === 'win32' ? 'The policy workflow executes under hosted Ubuntu bash' : false }, (t) => {
   const directory = mkdtempSync(join(tmpdir(), 'dsh-policy-rollout-'))
   t.after(() => rmSync(directory, { recursive: true, force: true }))
