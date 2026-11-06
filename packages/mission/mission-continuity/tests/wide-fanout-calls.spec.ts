@@ -24,6 +24,7 @@ import { UNCERTAIN_OPERATIONS } from '../src/runtime.ts'
 import {
   createAgent,
   mountHarness,
+  soleRow,
   tempRoot,
   textResponse,
   waitFor,
@@ -332,7 +333,7 @@ describe('wide fan-out with real failures', () => {
     expect(held.authorization?.code).toBe(UNCERTAIN_OPERATIONS)
     expect(held.authorization?.message).toContain('4 recorded')
     expect(held.attempts).toBe(0)
-    const [row] = await missions.ledger.list()
+    const row = await soleRow(harness)
     expect(row.state).toBe('held')
     expect(row.lastError?.code).toBe(UNCERTAIN_OPERATIONS)
 

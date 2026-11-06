@@ -24,7 +24,7 @@ import { DomainFacility } from '@deepseek-ai/dsh-storage-domain'
 import * as StorageJson from '@deepseek-ai/dsh-storage-json'
 import * as ToolTodo from '@deepseek-ai/dsh-tool-todo'
 import MissionService from '../src/index.ts'
-import type { Config } from '../src/index.ts'
+import type { Config, RecoveryRecord } from '../src/index.ts'
 
 /** One scripted model answer: chunks, a failure, or an answer that never ends. */
 export type ScriptEntry = StreamChunk[] | Error | 'hang' | ((options: GenerateOptions) => StreamChunk[])
@@ -115,6 +115,12 @@ export interface HarnessOptions {
   readonly sessionId?: string
   /** Observation hook after services activate and before any Agent exists. */
   readonly onContext?: (ctx: Context) => void
+  /**
+   * Hook installed after every dependency is mounted and before the mission
+   * service activates, so a test can arrange a durable medium that fails while
+   * startup is still rebuilding the index — the only window that exercises it.
+   */
+  readonly beforeMission?: (ctx: Context) => void
   /** Provider the recovered Agent is composed with; the deployment's choice. */
   readonly provider?: string
   /** Session-scoped setup the deployment adds while composing a recovered Agent. */
@@ -127,6 +133,20 @@ export interface HarnessOptions {
    * default.
    */
   readonly maxParallelToolCalls?: number
+}
+
+/**
+ * The single durable row a test expects to observe. Destructuring the ledger
+ * list directly yields `RecoveryRecord | undefined`; asserting the invariant in
+ * one place keeps every caller free of a redundant non-null assertion while
+ * still failing loudly when the ledger does not hold exactly one row.
+ */
+export async function soleRow(harness: MissionHarness): Promise<RecoveryRecord> {
+  const rows = await harness.ctx.missions.ledger.list()
+  if (rows.length !== 1) throw new Error(`expected exactly one recovery row, found ${String(rows.length)}`)
+  const [row] = rows
+  if (row === undefined) throw new Error('recovery row vanished between length check and read')
+  return row
 }
 
 /** One mounted composition rooted at a durable directory. */
@@ -182,6 +202,7 @@ export async function mountHarness(options: HarnessOptions): Promise<MissionHarn
     agents: [],
     ...options.maxParallelToolCalls === undefined ? {} : { maxParallelToolCalls: options.maxParallelToolCalls },
   })
+  options.beforeMission?.(ctx)
   await ctx.plugin(MissionService, options.config ?? {})
   options.onContext?.(ctx)
   return { ctx, adapter, session: SessionId(options.sessionId ?? 'mission-session') }

@@ -80,10 +80,13 @@ describe('persistence failures', () => {
   it('drops the index row and blocks the objective when the record cannot be appended', async () => {
     const { harness, agent } = await mount()
     const append = agent.session.append.bind(agent.session)
-    vi.spyOn(agent.session, 'append').mockImplementation(((type: string, data: unknown) => {
+    // Mirrors the canonical spy signature used elsewhere in the repository
+    // (packages/acp): the rest parameter stays `never[]` so the mock keeps the
+    // method's overload shape instead of widening it.
+    vi.spyOn(agent.session, 'append').mockImplementation(((type: string, ...rest: never[]) => {
       if (type === 'mission/change') throw new Error('append refused')
-      return append(type as never, data as never)
-    }) as typeof agent.session.append)
+      return (append as (...args: never[]) => unknown)(type as never, ...rest)
+    }) as never)
     await expect(harness.ctx.missions.start(agent, { objective: 'append failure', completionCriteria: ['x'] }))
       .rejects.toThrow('append refused')
     expect(await harness.ctx.missions.ledger.list()).toHaveLength(0)

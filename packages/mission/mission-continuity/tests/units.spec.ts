@@ -21,6 +21,8 @@ import {
 import type {
   MissionChangeMeta,
   MissionSnapshot,
+  MissionSnapshotChangeMeta,
+  MissionView,
   RecoveryNoticeStep,
   UncertainOperation,
 } from '../src/index.ts'
@@ -41,8 +43,26 @@ function snapshot(overrides: Partial<MissionSnapshot> = {}): MissionSnapshot {
   }
 }
 
-/** One `mission/change` payload. */
-function change(record: MissionSnapshot, operation: MissionChangeMeta['operation'] = 'start'): MissionChangeMeta {
+/**
+ * A durable record as the service presents it to the renderer. `MissionView`
+ * adds the `settled` flag, which is derived from the linked objective rather
+ * than stored, so the notice fixtures state it explicitly instead of widening
+ * the parameter.
+ */
+function view(overrides: Partial<MissionSnapshot> = {}, settled = false): MissionView {
+  return { ...snapshot(overrides), settled }
+}
+
+/**
+ * One `mission/change` payload carrying a full snapshot. `MissionChangeMeta` is
+ * a discriminated union whose `clear` arm has no `mission` field, so the
+ * parameter is narrowed to the snapshot-carrying operations instead of the
+ * whole union: the helper never builds the tombstone variant.
+ */
+function change(
+  record: MissionSnapshot,
+  operation: Exclude<MissionChangeMeta['operation'], 'clear'> = 'start',
+): MissionSnapshotChangeMeta {
   return { kind: 'mission/change', version: 1, operation, mission: record }
 }
 
@@ -220,8 +240,13 @@ describe('strict durable decoding', () => {
     expect(folded.uncertaintyRecorded).toBe(2)
     expect(folded.mission?.uncertainAcknowledged).toBe(1)
 
+    // Spread pairs a narrowed `operation` with a mismatched `data` under
+    // `exactOptionalPropertyTypes`; the harness builds the payload directly
+    // instead, which is also how the other forged events in this file read.
     const forgedScope: SessionEvent = {
-      ...authorized,
+      type: 'mission/change',
+      seq: authorized.seq,
+      time: authorized.time,
       data: change({
         ...first,
         revision: 2,
@@ -230,14 +255,16 @@ describe('strict durable decoding', () => {
           uncertaintyScope: { from: 0, through: 2, operations: [], unlisted: 2 },
         },
       }, 'authorize'),
-    }
+    } as SessionEvent
     expect(() => foldMission([started, unknown('call-one', 2), forgedScope]))
       .toThrow('mission uncertainty authorization scope does not match the event-log watermark')
 
     const forgedResume: SessionEvent = {
-      ...resumed,
+      type: 'mission/change',
+      seq: resumed.seq,
+      time: resumed.time,
       data: change({ ...first, revision: 3, uncertainAcknowledged: 2 }, 'resume'),
-    }
+    } as SessionEvent
     expect(() => foldMission([started, unknown('call-one', 2), authorized, forgedResume]))
       .toThrow('mission resume acknowledgement exceeds or differs from its presented scope')
   })
@@ -487,7 +514,7 @@ describe('strict durable decoding', () => {
     // Ordinary mission progress preserves the existing authorization/watermark.
     expect(applyMissionChange(started, change({ ...first, revision: 2 }, 'checkpoint')))
       .toMatchObject({ mission: { revision: 2 } })
-    expect(decodeMissionChange(change({ ...first, uncertainAcknowledged: 2 })).mission.uncertainAcknowledged).toBe(2)
+    expect(decodeMissionChange(change({ ...first, uncertainAcknowledged: 2 }))).toMatchObject({ mission: { uncertainAcknowledged: 2 } })
   })
 })
 
@@ -512,11 +539,12 @@ describe('recovery notice', () => {
 
   it('renders the objective, criteria, plan, checkpoint, and uncertainty', () => {
     const text = noticeText({
-      mission: {
-        ...snapshot({ revision: 2, attempts: 1 }),
+      mission: view({
+        revision: 2,
+        attempts: 1,
         checkpoint: { seq: 4, at: 5 },
         interruption: { kind: 'process-restart', at: 1_700_000_000_000, detail: 'process exited' },
-      },
+      }),
       objective: 'ship it',
       attempt: 1,
       steps,
@@ -537,7 +565,7 @@ describe('recovery notice', () => {
 
   it('omits optional sections and bounds long lists', () => {
     const bare = noticeText({
-      mission: snapshot({ revision: 2, attempts: 1 }),
+      mission: view({ revision: 2, attempts: 1 }),
       objective: 'quiet mission',
       attempt: 1,
       steps: [],
@@ -549,7 +577,7 @@ describe('recovery notice', () => {
     expect(bare).not.toContain('Recorded tool calls whose outcome is unknown:')
 
     const crowded = noticeText({
-      mission: snapshot({ revision: 2, attempts: 1 }),
+      mission: view({ revision: 2, attempts: 1 }),
       objective: 'busy mission',
       attempt: 1,
       steps: Array.from({ length: 14 }, (_value, index) => ({ content: `step ${index}`, status: 'pending' as const })),
@@ -564,7 +592,7 @@ describe('recovery notice', () => {
 
   it('names a doubt the bounded tracker could not list', () => {
     const text = noticeText({
-      mission: snapshot({ revision: 2, attempts: 1 }),
+      mission: view({ revision: 2, attempts: 1 }),
       objective: 'overflowed mission',
       attempt: 1,
       steps: [],

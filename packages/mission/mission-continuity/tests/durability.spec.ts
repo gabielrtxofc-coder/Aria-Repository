@@ -27,6 +27,7 @@ import {
   createAgent,
   mountHarness,
   readSessionArtifact,
+  soleRow,
   tempRoot,
   textResponse,
 } from './harness.ts'
@@ -44,8 +45,41 @@ async function mount(
   root: string,
   script: Parameters<typeof mountHarness>[0]['script'],
   config: Parameters<typeof mountHarness>[0]['config'] = {},
+  // `sessionId` is a harness concern, not a mission Config field: it selects the
+  // session the composition reattaches to, so it travels beside the config
+  // instead of inside it.
+  sessionId?: string,
 ) {
-  const harness = await mountHarness({ root, script, driver: true, config })
+  const harness = await mountHarness({ root, script, driver: true, config, ...(sessionId === undefined ? {} : { sessionId }) })
+  contexts.push(harness.ctx)
+  return harness
+}
+
+/**
+ * Restart the composition on `root` so the startup index rebuild runs.
+ *
+ * The rebuild is a private step of activation, so the test observes it the way a
+ * deployment does: mount again and await the ready services. That boot promise
+ * resolves after the ledger opens, the index is rebuilt from the session logs,
+ * and the startup sweep has run. Reaching into a service member would instead
+ * pin an implementation detail that configuration already exposes.
+ * @param root - durable root shared with the previous composition.
+ * @param config - mission configuration for the restarted composition.
+ * @returns the restarted, fully initialized composition.
+ */
+// eslint-disable-next-line @typescript-eslint/require-await -- single awaited mount, kept async for call-site symmetry
+async function restartAndRebuild(
+  root: string,
+  config: Parameters<typeof mountHarness>[0]['config'],
+  beforeMission?: Parameters<typeof mountHarness>[0]['beforeMission'],
+): Promise<Awaited<ReturnType<typeof mount>>> {
+  const harness = await mountHarness({
+    root,
+    script: [textResponse('continued')],
+    driver: true,
+    config: config ?? {},
+    ...beforeMission === undefined ? {} : { beforeMission },
+  } satisfies Parameters<typeof mountHarness>[0])
   contexts.push(harness.ctx)
   return harness
 }
@@ -271,8 +305,7 @@ describe('discovery index rebuild', () => {
     const second = await mount(root, [textResponse('continued')], {
       sweepOnStartup: false,
       maxRebuildSessions: 1,
-      sessionId: 'mission-session-a',
-    })
+    }, 'mission-session-a')
     expect(await second.ctx.missions.ledger.list()).toHaveLength(1)
   })
 
@@ -311,7 +344,7 @@ describe('interrupted calls with no durable result', () => {
     const report = await harness.ctx.missions.sweep()
 
     expect(report).toMatchObject({ considered: 1, resumed: 0, held: 1 })
-    const [row] = await harness.ctx.missions.ledger.list()
+    const row = await soleRow(harness)
     expect(row.state).toBe('held')
     expect(row.lastError?.code).toBe(UNCERTAIN_OPERATIONS)
     expect(row.lastError?.message).toContain('external_effect')
@@ -333,14 +366,14 @@ describe('interrupted calls with no durable result', () => {
     const held = harness.ctx.missions.get(agent)!
     await harness.ctx.missions.resume(agent, { id: held.id, revision: held.revision })
 
-    const [acknowledged] = await harness.ctx.missions.ledger.list()
+    const acknowledged = await soleRow(harness)
     expect(acknowledged.lastError?.code).toBe(UNCERTAIN_ACKNOWLEDGED)
     expect(acknowledged.attempts).toBe(0)
 
     // The acknowledgement is what lets the next sweep act despite the doubt.
     const report = await harness.ctx.missions.sweep()
     expect(report).toMatchObject({ considered: 1, resumed: 1 })
-    const [resumed] = await harness.ctx.missions.ledger.list()
+    const resumed = await soleRow(harness)
     expect(resumed.attempts).toBe(1)
     expect(resumed.state).toBe('armed')
   })
@@ -359,7 +392,7 @@ describe('interrupted calls with no durable result', () => {
 
     await harness.ctx.missions.resume(agent, { id: authorized.id, revision: authorized.revision })
 
-    const [row] = await harness.ctx.missions.ledger.list()
+    const row = await soleRow(harness)
     expect(row.lastError).toBeUndefined()
     expect(row.state).toBe('armed')
   })
@@ -369,14 +402,17 @@ describe('interrupted calls with no durable result', () => {
     cleanups.push(cleanup)
     const harness = await mount(root, [textResponse('work')], { sweepOnStartup: false })
     const agent = await createAgent(harness)
-    const projections = harness.ctx.sessionProjections as unknown as {
-      stateOf: (session: unknown, key: string) => unknown
-    }
-    const original = projections.stateOf.bind(projections)
-    vi.spyOn(projections, 'stateOf').mockImplementation(((session: unknown, key: string) =>
-      key === 'todos'
-        ? [{ content: 'check the deployment', status: 'pending' }]
-        : original(session, key)) as never)
+    // The plan is read from the `todos` projection, so the test writes it the
+    // way a deployment does: through the real `todo_write` tool, so the entry
+    // becomes a logged `todo/write` the projection folds like any other.
+    const written = await harness.ctx.tools.execute({
+      signal: new AbortController().signal,
+      callId: ToolCallId('plan-write'),
+      name: 'todo_write',
+      arguments: { todos: [{ content: 'check the deployment', status: 'pending' }] },
+      agent,
+    })
+    expect(written.isError).toBe(false)
 
     expect(harness.ctx.missions.plan(agent)).toEqual([
       { content: 'check the deployment', status: 'pending' },
@@ -414,14 +450,16 @@ describe('index rebuild failures', () => {
   it('keeps rebuilding when one stored session cannot be read', async () => {
     const { root, cleanup } = await tempRoot('dsh-mission-rebuild-ghost-')
     cleanups.push(cleanup)
-    const harness = await mount(root, [textResponse('work')], { sweepOnStartup: false })
     // A storage that lists a session whose artifact is already gone (a delete
     // that stopped halfway, or a start that never flushed) must cost one row.
-    vi.spyOn(harness.ctx.sessionPersistence, 'list').mockResolvedValue([
-      { header: { id: 'mission-session-ghost' } } as never,
-    ])
-    await (harness.ctx.missions as unknown as { rebuildIndex: () => Promise<void> }).rebuildIndex()
-    expect(await harness.ctx.missions.ledger.list()).toEqual([])
+    // The failure has to be arranged before activation, because that is when the
+    // rebuild lists the medium.
+    const restarted = await restartAndRebuild(root, { sweepOnStartup: false }, (ctx) => {
+      vi.spyOn(ctx.sessionPersistence, 'list').mockResolvedValue([
+        { header: { id: 'mission-session-ghost' } } as never,
+      ])
+    })
+    expect(await restarted.ctx.missions.ledger.list()).toEqual([])
   })
 
   it('skips the rebuild entirely when the medium cannot be listed', async () => {
@@ -435,12 +473,17 @@ describe('index rebuild failures', () => {
     contexts.splice(contexts.indexOf(first.ctx), 1)
 
     await removeIndexFiles(root)
-    const second = await mount(root, [textResponse('continued')], { sweepOnStartup: false })
-    const warn = vi.spyOn(second.ctx.logger, 'warn')
-    const list = vi.spyOn(second.ctx.sessionPersistence, 'list').mockRejectedValue(new Error('medium offline'))
-    await (second.ctx.missions as unknown as { rebuildIndex: () => Promise<void> }).rebuildIndex()
-    expect(warn.mock.calls.some(call => String(call[0]).includes('medium offline'))).toBe(true)
-    list.mockRestore()
+    // The medium fails while the restarted composition is still booting, which
+    // is the only window the rebuild runs in: the spy has to be in place before
+    // the mission service activates, not after.
+    const warnings: unknown[][] = []
+    await restartAndRebuild(root, { sweepOnStartup: false }, (ctx) => {
+      vi.spyOn(ctx.sessionPersistence, 'list').mockRejectedValue(new Error('medium offline'))
+      vi.spyOn(ctx.logger, 'warn').mockImplementation((format: unknown, ...param: unknown[]) => {
+        warnings.push([format, ...param])
+      })
+    })
+    expect(warnings.some(args => String(args[0]).includes('medium offline'))).toBe(true)
   })
 })
 

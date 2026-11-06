@@ -14,7 +14,7 @@ import { rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Context } from '@deepseek-ai/cordis'
-import { ToolCallId, createToolResultMessage } from '@deepseek-ai/dsh-llm'
+import { MessageId, ToolCallId, createToolResultMessage } from '@deepseek-ai/dsh-llm'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { TOOL_OUTCOME_UNKNOWN } from '@deepseek-ai/dsh-session'
 import { UNCERTAIN_OPERATIONS } from '../src/runtime.ts'
@@ -24,6 +24,7 @@ import {
   stopHarness,
   tempRoot,
   textResponse,
+  soleRow,
 } from './harness.ts'
 import type { MissionHarness } from './harness.ts'
 
@@ -94,13 +95,14 @@ function beginUnknownCall(agent: Agent, callId: string): OpenUnknownCall {
     step: 1,
     stream: [],
     message: {
-      id: randomUUID(),
+      id: MessageId(randomUUID()),
       role: 'assistant',
       content: [{ type: 'tool-call', id: ToolCallId(callId), name: 'external_effect', arguments: '{}' }],
-      source: { kind: 'model', provider: 'mock', model: 'mock', api: 'mock' },
-      stopReason: 'tool-calls',
-      usage: { input: 0, output: 0, cache: { read: 0, write: 0 }, cost: { total: 0 } },
+      source: { kind: 'model', provider: 'mock', model: 'mock' },
     },
+    // Usage rides the event envelope, not the message: `AssistantMessage` has no
+    // stopReason or usage field.
+    usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
   }, { surfaceOp: 'append' })
   agent.session.append('tool/call', {
     turn, step: 1, callId: ToolCallId(callId), name: 'external_effect', arguments: '{}',
@@ -139,7 +141,7 @@ function beginUnknownFanout(agent: Agent, callIds: readonly string[]): OpenUnkno
     step: 1,
     stream: [],
     message: {
-      id: randomUUID(),
+      id: MessageId(randomUUID()),
       role: 'assistant',
       content: callIds.map(callId => ({
         type: 'tool-call' as const,
@@ -147,10 +149,9 @@ function beginUnknownFanout(agent: Agent, callIds: readonly string[]): OpenUnkno
         name: 'external_effect',
         arguments: '{}',
       })),
-      source: { kind: 'model', provider: 'mock', model: 'mock', api: 'mock' },
-      stopReason: 'tool-calls',
-      usage: { input: 0, output: 0, cache: { read: 0, write: 0 }, cost: { total: 0 } },
+      source: { kind: 'model', provider: 'mock', model: 'mock' },
     },
+    usage: { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
   }, { surfaceOp: 'append' })
   for (const callId of callIds) {
     agent.session.append('tool/call', {
@@ -266,9 +267,12 @@ describe('acknowledgement scope', () => {
     cleanups.push(cleanup)
     const harness = await mount(root, [], { sweepOnStartup: false })
     const agent = await startMission(harness)
+    // `get` answers `undefined` when no mission is live; the projection check
+    // below still pins the payload shape, and the assertion hoists the guard so
+    // the call sites keep their real `MissionView` type.
     const mission = harness.ctx.missions.get(agent)
     const state = harness.ctx.sessionProjections.stateOf(agent.session, 'mission')
-    if (mission === null || state === undefined || state.current === null) {
+    if (mission === undefined || state === undefined || state.current === null) {
       throw new Error('expected a live mission projection')
     }
     vi.spyOn(harness.ctx.sessionProjections, 'stateOf').mockReturnValue({
@@ -291,7 +295,7 @@ describe('acknowledgement scope', () => {
     expect(await harness.ctx.missions.sweep()).toMatchObject({ held: 1 })
     const mission = harness.ctx.missions.get(agent)
     const state = harness.ctx.sessionProjections.stateOf(agent.session, 'mission')
-    if (mission === null || state === undefined) throw new Error('expected a held mission projection')
+    if (mission === undefined || state === undefined) throw new Error('expected a held mission projection')
     vi.spyOn(harness.ctx.sessionProjections, 'stateOf').mockReturnValue({
       ...state,
       uncertainOperations: [],
@@ -309,7 +313,7 @@ describe('acknowledgement scope', () => {
     const agent = await startMission(harness)
     recordUnknownCall(agent, 'missing-authorization-call')
     const mission = harness.ctx.missions.get(agent)
-    if (mission === null) throw new Error('expected a live mission')
+    if (mission === undefined) throw new Error('expected a live mission')
     vi.spyOn(harness.ctx.missions, 'authorize').mockResolvedValue(mission)
 
     expect(await harness.ctx.missions.sweep()).toMatchObject({ held: 0, failed: 1 })
@@ -439,7 +443,7 @@ describe('acknowledgement scope', () => {
     const reheld = second.ctx.missions.get(restored)!
     expect(reheld.authorization?.code).toBe(UNCERTAIN_OPERATIONS)
     expect(reheld.attempts).toBe(0)
-    const [row] = await second.ctx.missions.ledger.list()
+    const row = await soleRow(second)
     expect(row?.state).toBe('held')
     expect(row?.lastError?.code).toBe(UNCERTAIN_OPERATIONS)
     // The diagnostic names the count the human has to act on: one new doubt,
@@ -549,7 +553,7 @@ describe('acknowledgement scope', () => {
     expect(unnamed(second, restored)).toBe(0)
     // Cleared doubts do not re-block a rebuilt mission.
     expect(await second.ctx.missions.sweep()).toMatchObject({ considered: 1, resumed: 1, held: 0 })
-    const [row] = await second.ctx.missions.ledger.list()
+    const row = await soleRow(second)
     expect(row).toMatchObject({ state: 'armed', attempts: 1 })
     expect(second.ctx.missions.get(restored)?.authorization).toBeUndefined()
 
