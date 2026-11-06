@@ -52,10 +52,24 @@ export const recoveryRecordSchema = z.object({
 /** Durable discovery row value. */
 export type RecoveryRecord = z.infer<typeof recoveryRecordSchema>
 
-/** Diagnostics retained by the ledger; keys are mission ids. */
+/**
+ * Diagnostics retained by the ledger; keys are mission ids.
+ *
+ * The session log is the authority for mission state and a row here is a
+ * discovery hint, so this domain is declared as disposable derived data:
+ * `per-record` gives every hint its own document (a hint is small, independent,
+ * and individually replaceable), and `invalidRecords: 'backup-and-skip'` moves a
+ * single unreadable hint aside — logged with its cause — instead of refusing the
+ * whole domain. Without both, one damaged hint would reject `open()` and take
+ * the entire composition down even though every mission is still intact in its
+ * session log. Rows are rebuilt from those logs on the next startup, and every
+ * recovery reconciles its row against the log before claiming anything.
+ */
 export const missionContinuityDomain = defineDomain({
   name: 'mission_continuity',
   version: 1,
+  layout: 'per-record',
+  invalidRecords: 'backup-and-skip',
   tables: { recoveries: domainTable<RecoveryRecord['missionId'], RecoveryRecord>(recoveryRecordSchema) },
 })
 

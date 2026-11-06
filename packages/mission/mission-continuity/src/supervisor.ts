@@ -15,7 +15,8 @@ import type { Agent, AgentHandle } from '@deepseek-ai/dsh-agent'
 import type { GoalChanged, GoalView } from '@deepseek-ai/dsh-goal'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { SessionId } from '@deepseek-ai/dsh-session'
-import { MAX_DIAGNOSTIC_LENGTH, UNCERTAIN_ACKNOWLEDGED, UNCERTAIN_OPERATIONS } from './runtime.ts'
+import { MAX_DIAGNOSTIC_LENGTH, UNCERTAIN_OPERATIONS } from './runtime.ts'
+import { presentUncertaintyScope, recordedUncertainty, unacknowledgedUncertainty } from './uncertainty.ts'
 import { renderMissionRecoveryNotice } from './prompt.ts'
 import type { RecoveryRecord } from './ledger.ts'
 import type { MissionService, ResolvedConfig } from './service.ts'
@@ -83,6 +84,16 @@ export class MissionSupervisor {
    * attempt, queue a second notice, or resume the same work twice.
    */
   private readonly claims = new Map<string, { readonly missionId: string; readonly revision: number; readonly attempts: number }>()
+  /**
+   * Rotation cursor over `ledger.list()` order. `maxMissionsPerSweep` bounds the
+   * work one sweep does, not which missions it can ever reach: without a cursor
+   * every sweep starts at the same first row, so a mission this supervisor has
+   * already claimed keeps the budget to itself forever and every later
+   * interruption stays unrecoverable until the first mission settles. Each
+   * sweep starts where the previous one stopped and wraps once, so every armed
+   * mission is reached within `ceil(rows / perSweep)` sweeps.
+   */
+  private cursor = 0
   private running: Promise<MissionSweepReport> | undefined
   private stopping = false
 
@@ -171,9 +182,8 @@ export class MissionSupervisor {
 
   /** Perform one sweep, reporting every candidate outcome. */
   private async runSweep(): Promise<MissionSweepReport> {
-    const rows = (await this.service.ledger.list())
-      .filter(row => row.state === 'armed')
-      .slice(0, this.config.maxMissionsPerSweep)
+    const armed = (await this.service.ledger.list()).filter(row => row.state === 'armed')
+    const rows = this.rotate(armed)
     const report = { considered: rows.length, resumed: 0, held: 0, settled: 0, exhausted: 0, failed: 0, skipped: 0 }
     for (const row of rows) {
       if (this.stopping) break
@@ -181,6 +191,25 @@ export class MissionSupervisor {
       report[outcome] += 1
     }
     return report
+  }
+
+  /**
+   * Take this sweep's bounded window of candidates, starting at the cursor left
+   * by the previous sweep and wrapping once. The cursor advances by the number
+   * of rows this sweep considered, so a repeated sweep of a large index reaches
+   * a different window instead of re-examining the same leading rows forever.
+   * `ledger.list()` is first-write ordered, so the rotation is stable across
+   * sweeps of the same index.
+   * @param armed - every armed row the index holds, in ledger order.
+   * @returns at most `maxMissionsPerSweep` rows, in ledger order from the cursor.
+   */
+  private rotate(armed: readonly RecoveryRecord[]): readonly RecoveryRecord[] {
+    if (armed.length === 0) return []
+    const bound = this.config.maxMissionsPerSweep
+    const start = this.cursor % armed.length
+    const window = [...armed.slice(start), ...armed.slice(0, start)].slice(0, bound)
+    this.cursor = (start + window.length) % armed.length
+    return window
   }
 
   /**
@@ -246,17 +275,30 @@ export class MissionSupervisor {
     // A call that started without a durable result may or may not have changed
     // external state. Resuming would let the model repeat a destructive action
     // nobody confirmed, so recovery stops and records the doubt where a human
-    // can act on it; only a recorded decision resumes this mission.
-    const uncertain = this.service.uncertainOperations(agent)
-    if (uncertain.length > 0 && row.lastError?.code !== UNCERTAIN_ACKNOWLEDGED) {
-      const message = `Interrupted tool calls whose outcome is unknown: ${
-        uncertain.map(operation => operation.name).join(', ')
-      }. Verify the external state before this mission continues.`
+    // can act on it; only a recorded decision resumes this mission — and only
+    // for the doubts that decision covered, which is why the backlog is measured
+    // against the durable record instead of any note the index row may carry. A
+    // row is a hint: it is rewritten by the next mutation and rebuilt from the
+    // logs, so it cannot be what authorizes continuing past an effect nobody
+    // confirmed.
+    const backlog = unacknowledgedUncertainty(
+      this.service.uncertainOperations(agent),
+      this.service.uncertainOverflow(agent),
+      mission.uncertainAcknowledged,
+    )
+    if (backlog.count > 0) {
+      const through = recordedUncertainty(
+        this.service.uncertainOperations(agent),
+        this.service.uncertainOverflow(agent),
+      )
+      const presented = presentUncertaintyScope(mission.uncertainAcknowledged ?? 0, through, backlog)
       const authorized = await this.service.authorize(
         agent,
         { id: mission.id, revision: mission.revision },
-        { code: UNCERTAIN_OPERATIONS, message },
+        { code: UNCERTAIN_OPERATIONS, message: presented.message },
       )
+      const message = authorized.authorization?.message
+      if (message === undefined) throw new Error('mission uncertainty authorization was not persisted')
       await this.hold({ ...row, revision: authorized.revision, attempts: authorized.attempts },
         UNCERTAIN_OPERATIONS, message)
       return 'held'
@@ -326,6 +368,7 @@ export class MissionSupervisor {
         attempt: attempted.attempts,
         steps: this.service.plan(agent),
         uncertainOperations: this.service.uncertainOperations(agent),
+        uncertainOverflow: this.service.uncertainOverflow(agent),
       }),
       source: {
         kind: 'mission',
