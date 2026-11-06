@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
 import { createHash } from 'node:crypto'
 import { c as tar } from 'tar'
+import { load as parseYaml } from 'js-yaml'
 import { downloadOfficeSidecar, runtimeNpmArchive } from './build-exe-for-python-sdk-office.ts'
 
 import { officePackageDirectories } from './libreoffice-packages.mjs'
@@ -145,4 +146,25 @@ it('takes npm integrity from the workspace lock without querying registry metada
   await expect(runtimeNpmArchive('@scope/fixture', '1.2.4', lockfile)).rejects.toThrow('missing SHA-512 integrity')
   await writeFile(lockfile, JSON.stringify({ packages: { '@scope/fixture@1.2.3': { resolution: { integrity: 'sha256-invalid' } } } }))
   await expect(runtimeNpmArchive('@scope/fixture', '1.2.3', lockfile)).rejects.toThrow('missing SHA-512 integrity')
+})
+
+it('pins @swc/helpers so a deploy re-resolution cannot ship an unlocked version', async () => {
+  // Regression for the python-runtime failure
+  // "runtime npm lock: missing SHA-512 integrity for @swc/helpers@0.5.24".
+  // `fontkit` declares `@swc/helpers: ^0.5.12`. The workspace lock pinned
+  // 0.5.23, but `pnpm deploy` replays the range instead of the lock, so the
+  // deployed closure picked up 0.5.24 the day it was published. The override
+  // in pnpm-workspace.yaml (mirrored into pnpm-lock.yaml) is what keeps the
+  // deployed closure on the reviewed archive.
+  const ws = parseYaml(await readFile(join(import.meta.dirname, '../pnpm-workspace.yaml'), 'utf8')) as {
+    overrides?: Record<string, string>
+  }
+  expect(ws.overrides?.['@swc/helpers']).toBe('0.5.23')
+
+  const lock = parseYaml(await readFile(join(import.meta.dirname, '../pnpm-lock.yaml'), 'utf8')) as {
+    overrides?: Record<string, string>
+  }
+  // pnpm stores the workspace overrides in the lock header; a lock without the
+  // mirror is reported as out of date on --frozen-lockfile.
+  expect(lock.overrides?.['@swc/helpers']).toBe('0.5.23')
 })
