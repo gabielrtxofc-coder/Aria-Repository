@@ -121,6 +121,12 @@ export interface HarnessOptions {
   readonly setup?: (agent: Agent) => void
   /** Compose recovered Agents with no provider/model, as an unconfigured deployment would. */
   readonly emptyPlan?: boolean
+  /**
+   * Tool calls one step may keep in flight at once, so a test can drive the
+   * fan-out width the loop would really produce. Omitted means the shipped
+   * default.
+   */
+  readonly maxParallelToolCalls?: number
 }
 
 /** One mounted composition rooted at a durable directory. */
@@ -172,7 +178,10 @@ export async function mountHarness(options: HarnessOptions): Promise<MissionHarn
   })))
   const adapter = new ScriptedAdapter(options.script)
   ctx.llm.registerAdapter(['mock'], adapter)
-  await ctx.plugin(AgentLoop, { agents: [] })
+  await ctx.plugin(AgentLoop, {
+    agents: [],
+    ...options.maxParallelToolCalls === undefined ? {} : { maxParallelToolCalls: options.maxParallelToolCalls },
+  })
   await ctx.plugin(MissionService, options.config ?? {})
   options.onContext?.(ctx)
   return { ctx, adapter, session: SessionId(options.sessionId ?? 'mission-session') }

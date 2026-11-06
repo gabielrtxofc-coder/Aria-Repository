@@ -37,6 +37,12 @@ export interface RecoveryNoticeInput {
   readonly steps: readonly RecoveryNoticeStep[]
   /** Recorded calls whose results never became durable. */
   readonly uncertainOperations: readonly RecoveryNoticeOperation[]
+  /**
+   * Unknown-outcome calls the bounded tracker could not list. Omitted when
+   * zero; a non-zero value still makes the mission unrecoverable without a
+   * human, so the notice must say so rather than read as "nothing went wrong".
+   */
+  readonly uncertainOverflow?: number | undefined
 }
 
 /** Most plan entries quoted in one notice. */
@@ -58,6 +64,8 @@ function renderStep(step: RecoveryNoticeStep): string {
  */
 export function renderMissionRecoveryNotice(input: RecoveryNoticeInput): ContentBlock[] {
   const { mission, objective, attempt, steps, uncertainOperations } = input
+  const overflow = input.uncertainOverflow ?? 0
+  const unknownOutcomes = uncertainOperations.length > 0 || overflow > 0
   const lines: string[] = [
     `<mission_recovery mission="${mission.id}" attempt="${attempt}/${mission.maxRecoveryAttempts}">`,
     'This message is not from the user. The Harness resumed the mission you were working on',
@@ -88,12 +96,16 @@ export function renderMissionRecoveryNotice(input: RecoveryNoticeInput): Content
     'Everything before the checkpoint is durable: earlier messages, tool results, and completed',
     'steps are still in this conversation. Do not redo work that already has a recorded result.',
   )
-  if (uncertainOperations.length > 0) {
+  if (unknownOutcomes) {
+    lines.push('', 'Recorded tool calls whose outcome is unknown:')
+    for (const operation of uncertainOperations.slice(0, MAX_NOTICE_OPERATIONS)) {
+      lines.push(`- ${operation.name} (${operation.callId})`)
+    }
+    const unlisted = Math.max(0, uncertainOperations.length - MAX_NOTICE_OPERATIONS)
+    if (unlisted > 0 || overflow > 0) {
+      lines.push(`- and ${unlisted + overflow} more recorded calls with unknown outcomes`)
+    }
     lines.push(
-      '',
-      'Recorded tool calls whose outcome is unknown:',
-      ...uncertainOperations.slice(0, MAX_NOTICE_OPERATIONS).map(operation =>
-        `- ${operation.name} (${operation.callId})`),
       'Their side effects may or may not have happened. Verify the external state first, and',
       'retry only when the operation is read-only or idempotent.',
     )
