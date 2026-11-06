@@ -49,8 +49,10 @@ jobs:
         with:
           client-id: ${{ vars.DSH_ISSUE_APP_CLIENT_ID }}
           private-key: ${{ secrets.DSH_ISSUE_APP_PRIVATE_KEY }}
-          owner: deepseek-harness
-          repositories: deepseek-harness
+          # Derived from trusted event context, not a literal: the default
+          # branch's repository is the one whose Project the policy manages.
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
       - name: Handle repository event
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}

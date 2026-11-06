@@ -27,7 +27,9 @@ const workflow = yaml.load(readFileSync(resolve(import.meta.dirname, '../.github
   jobs: { 'node-compat': CompatibilityJob; 'python-sdk': { 'runs-on': string } }
 }
 const job = workflow.jobs['node-compat']
-const labels = ['self-hosted', 'linux', 'x64', 'vm-backup']
+// No pool labels remain: ci.yml pins standard hosted runners for every PR job,
+// so the compatibility legs simply take their matrix runner.
+const labels = 'ubuntu-latest'
 
 // This wiring check uses equal-typed, canonical-case fixtures. Actions compares
 // strings case-insensitively; JavaScript does not. This is not an Actions evaluator.
@@ -53,22 +55,26 @@ function route(options: { mode?: string; author?: string; repository?: string; f
   })
 }
 
-describe('Node compatibility self-hosted routing', () => {
-  it('uses the Linux pool only for opted-in repository-owned PRs', () => {
-    expect(route()).toEqual(labels)
-    for (const mode of ['', 'hosted', 'unexpected']) expect(route({ mode })).toBe('ubuntu-latest')
-    // The blacksmith value routes the compatibility legs onto Blacksmith's
-    // standard Linux runner regardless of PR ownership (ephemeral runners).
-    expect(route({ mode: 'blacksmith' })).toBe('blacksmith-4vcpu-ubuntu-2404')
+describe('Node compatibility hosted routing', () => {
+  it('always takes the matrix runner and ignores every pool switch', () => {
+    expect(route()).toBe(labels)
+    // A leftover failover value must not change the routed runner: the selector
+    // carries no variable reference at all any more.
+    for (const mode of ['', 'hosted', 'unexpected', 'blacksmith', 'selfhosted']) {
+      expect(route({ mode }), `mode=${mode}`).toBe('ubuntu-latest')
+    }
+    // Ownership of the PR is no longer a routing input.
     expect(route({ author: 'dependabot[bot]', actor: 'maintainer' })).toBe('ubuntu-latest')
     expect(route({ repository: 'outsider/fork', fork: true })).toBe('ubuntu-latest')
-    expect(route({ repository: 'outsider/fork', fork: false })).toBe('ubuntu-latest')
     expect(route({ fork: true })).toBe('ubuntu-latest')
     expect(route({ repository: '' })).toBe('ubuntu-latest')
   })
 
   it('preserves all three required version jobs and their concurrency', () => {
-    expect(job.if).toBe("github.event_name == 'pull_request'")
+    expect(job.if).toContain("github.event_name == 'pull_request'")
+    // Base-change guard: only an `edited` event that actually moved the base
+    // re-runs the suite.
+    expect(job.if).toContain("github.event.changes.base != null")
     expect(job.strategy['fail-fast']).toBe(false)
     expect(job.strategy.matrix.include).toEqual([
       { node: '22.19', name: 'node 22.19', runner: 'ubuntu-latest', gate_concurrency: '1' },
