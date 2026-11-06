@@ -37,7 +37,16 @@ function commands(job: Job): string[] {
 
 // These boolean/string cases share Actions and JavaScript semantics. GitHub
 // supplies status functions; this probe is not a general Actions interpreter.
-function evaluateCondition(expression: string, cancelled: boolean, results: string[], event = 'pull_request'): boolean {
+function evaluateCondition(
+  expression: string,
+  cancelled: boolean,
+  results: string[],
+  event = 'pull_request',
+  // The default is an ordinary pull-request event: not `edited`, so the
+  // base-change guard is satisfied without a `changes` payload.
+  action = 'synchronize',
+  base: Record<string, unknown> | null = null,
+): boolean {
   const source = expression.trim().replace(/^[$][{][{]|[}][}]$/g, '')
     .replaceAll('needs.*.result', 'results')
   return runInNewContext(source, {
@@ -45,7 +54,9 @@ function evaluateCondition(expression: string, cancelled: boolean, results: stri
     always: () => true,
     contains: (values: string[], value: string) => values.includes(value),
     results,
-    github: { event_name: event },
+    // A title/body edit still carries a `changes` object (without `base`), so
+    // the guard reads `undefined` there, never a missing property.
+    github: { event_name: event, event: { action, changes: base === null ? { title: { from: 'x' } } : { base } } },
   }, { timeout: 1000 }) as boolean
 }
 
@@ -72,21 +83,34 @@ describe('master-only platform scheduling', () => {
     expect(evaluateCondition(workflow('ci.yml').jobs['all-checks-passed']!.if as string, true, ['success'])).toBe(false)
   })
 
+  it('re-runs only when an edit actually moves the base branch', () => {
+    const aggregate = workflow('ci.yml').jobs['all-checks-passed']!
+    const condition = aggregate.if as string
+    const results = aggregate.needs!.map(() => 'success')
+    // A retarget reports the old base in `changes`, so the guard opens.
+    expect(evaluateCondition(condition, false, results, 'pull_request', 'edited', { ref: 'main' })).toBe(true)
+    // A title or body edit arrives as `edited` with no `base` change: the
+    // previous verdict still stands and no runner is consumed.
+    expect(evaluateCondition(condition, false, results, 'pull_request', 'edited', null)).toBe(false)
+  })
+
   it('keeps only Linux and Windows x64 runtimes in required PR CI', () => {
     const pr = workflow('ci.yml')
     expect(Object.keys(pr.on)).toEqual(['pull_request'])
     expect(pr.jobs['python-runtime']).toMatchObject({
-      if: "github.event_name == 'pull_request'",
       uses: runtimeBuilder,
       with: { ci: true, targets: 'node24-linux-x64,node24-win-x64' },
     })
+    // Base-change guard: the condition is no longer the bare event check.
+    expect(pr.jobs['python-runtime']!.if).toContain("github.event_name == 'pull_request'")
     expect(pr.jobs.windows).toBeUndefined()
     expect(JSON.stringify(pr.jobs)).not.toMatch(/wine-windows-gates|check:windows-wine/)
     const aggregate = pr.jobs['all-checks-passed']!
     expect(aggregate.needs).toContain('python-runtime')
     expect(aggregate.needs).not.toContain('windows')
     expect(aggregate.needs!.every(id => id in pr.jobs)).toBe(true)
-    expect(aggregate.if).toBe("${{ !cancelled() && github.event_name == 'pull_request' }}")
+    expect(aggregate.if).toContain("${{ !cancelled() && github.event_name == 'pull_request'")
+    expect(aggregate.if).toContain("github.event.changes.base != null")
     expect(aggregate.steps).toContainEqual(expect.objectContaining({
       if: "contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped')",
     }))

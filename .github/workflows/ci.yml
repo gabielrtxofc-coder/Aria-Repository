@@ -2,6 +2,11 @@ name: CI
 
 on:
   pull_request:
+    # `edited` is what a base-branch change emits; the default set omits it, which
+    # is why retargeting a PR used to leave the previous verdict standing. Title
+    # and body edits raise the same action, so every job guards on `changes.base`
+    # below and a wording change consumes no runner.
+    types: [opened, synchronize, reopened, edited]
 permissions:
   contents: read
 
@@ -20,39 +25,29 @@ concurrency:
 
 jobs:
 
-  # Three enterprise jobs isolate coverage, static analysis, and the
-  # build-backed consumer tail. The consumer job owns the only Linux build so
-  # all three jobs enter runner allocation independently.
+  # Every pull-request job runs on a standard GitHub-hosted runner. The
+  # workflow deliberately carries no pool switch: the repository is public and
+  # accepts forks, so dispatching PR code to a persistent self-hosted machine
+  # would execute untrusted code on shared hardware. Keeping this file free of
+  # such selectors makes that impossible by construction rather than by
+  # configuration -- there is no writer-manageable variable that can retarget
+  # these jobs.
   #
-  # FAILOVER (Linux): each Linux enterprise job resolves its pool through the
-  # DSH_CI_FAILOVER_LINUX repository variable. Unset (normal), the expressions
-  # pick the hosted enterprise pools below. Setting the variable to
-  # 'selfhosted' (repo Settings → Actions → Variables; writer-manageable
-  # repository state — not PR-editable, no merge required) retargets all
-  # three onto the in-house
-  # vm-backup pool and re-running the failed jobs is the entire switch —
-  # see .agents/notes/implemented/process/2026-07-26-ci-failover-runbook.md.
-  # Setting the variable to 'blacksmith' instead routes the same jobs onto
-  # Blacksmith's hosted runners sized per workload (see
-  # .agents/notes/implemented/process/2026-09-09-blacksmith-failover-leg.md). The
-  # in-house pool's readiness is re-proven on every master push by the
-  # serial-linux-selfhosted standby lane in ci-master.yml. The Windows failover
-  # switch is the separate DSH_CI_FAILOVER_WINDOWS variable on the windows-native
-  # job below.
+  # The self-hosted standby drills live in ci-master.yml and run only on
+  # trusted pushes; they never listen to pull_request.
+  #
+  # Sizing: ubuntu-24.04 is 4 vCPU / 16 GB and windows-2025 is 4 vCPU / 16 GB.
+  # Coverage keeps its four instrumented partitions; a job approaching its
+  # timeout is split rather than retargeted to a larger (paid) pool.
   node-24:
-    if: github.event_name == 'pull_request'
-    runs-on: >-
-      ${{ vars.DSH_CI_FAILOVER_LINUX == 'blacksmith' && 'blacksmith-8vcpu-ubuntu-2404'
-          || vars.DSH_CI_FAILOVER_LINUX == 'selfhosted'
-          && github.event.pull_request.user.login != 'dependabot[bot]'
-          && fromJSON('["self-hosted", "linux", "x64", "vm-backup"]')
-          || 'dsh-ubuntu-24-04-16core' }}
+    if: >-
+      github.event_name == 'pull_request'
+      && (github.event.action != 'edited' || github.event.changes.base != null)
+    runs-on: ubuntu-24.04
     name: node 24 / static
     env:
-      # Shared hosts expose host CPUs, not an isolated allocation.
-      DSH_GATE_CONCURRENCY: ${{ vars.DSH_CI_FAILOVER_LINUX == 'selfhosted' && github.event.pull_request.user.login != 'dependabot[bot]' && '8' || '' }}
       # Stop the aggregate at the first blocking gate failure so a red run
-      # does not keep burning enterprise runner time on the remaining gates.
+      # does not keep burning runner minutes on the remaining gates.
       DSH_GATE_FAIL_FAST: '1'
     steps:
       # Runner cleanup owns tool caches and fixtures, including cancelled runs.
@@ -88,10 +83,8 @@ jobs:
           echo "path=$store_path" >> "$GITHUB_OUTPUT"
 
       # Pull requests consume the default-branch cache but do not put cache
-      # compression and upload on the paid latency-critical path. Skipped
-      # under failover — see the coverage lane's identical rationale.
+      # compression and upload on the latency-critical path.
       - uses: actions/cache/restore@v6.1.0
-        if: vars.DSH_CI_FAILOVER_LINUX != 'selfhosted' || github.event.pull_request.user.login == 'dependabot[bot]'
         with:
           path: ${{ steps.pnpm-store.outputs.path }}
           key: ${{ runner.os }}-node-${{ env.PRIMARY_NODE_VERSION }}-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
@@ -107,19 +100,12 @@ jobs:
         run: pnpm run check:ci:static
 
   node-24-coverage:
-    if: github.event_name == 'pull_request'
-    runs-on: >-
-      ${{ vars.DSH_CI_FAILOVER_LINUX == 'blacksmith' && 'blacksmith-16vcpu-ubuntu-2404'
-          || vars.DSH_CI_FAILOVER_LINUX == 'selfhosted'
-          && github.event.pull_request.user.login != 'dependabot[bot]'
-          && fromJSON('["self-hosted", "linux", "x64", "vm-backup"]')
-          || 'dsh-ubuntu-24-04-16core' }}
+    if: >-
+      github.event_name == 'pull_request'
+      && (github.event.action != 'edited' || github.event.changes.base != null)
+    runs-on: ubuntu-24.04
     name: node 24 / coverage
     env:
-      # Shared hosts expose host CPUs, not an isolated allocation.
-      DSH_COVERAGE_MAX_WORKERS: ${{ vars.DSH_CI_FAILOVER_LINUX == 'selfhosted' && github.event.pull_request.user.login != 'dependabot[bot]' && '6' || '' }}
-      DSH_COVERAGE_PARTITIONS: ${{ vars.DSH_CI_FAILOVER_LINUX == 'selfhosted' && github.event.pull_request.user.login != 'dependabot[bot]' && '4' || '' }}
-      DSH_GATE_CONCURRENCY: ${{ vars.DSH_CI_FAILOVER_LINUX == 'selfhosted' && github.event.pull_request.user.login != 'dependabot[bot]' && '3' || '' }}
       # Managed-scope teardown cases run past the default per-test budget when
       # this lane's partitions, workers, and sibling gates share one host: the
       # disposal cases in subprocess-local and bash-sandbox exceeded 5000ms on
@@ -145,9 +131,9 @@ jobs:
         uses: actions/cache/restore@v6.1.0
         with:
           path: .coverage-times.json
-          key: coverage-times-Linux-${{ runner.environment }}-${{ vars.DSH_CI_FAILOVER_LINUX || 'enterprise' }}-${{ github.run_id }}-${{ github.run_attempt }}
+          key: coverage-times-Linux-hosted-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
-            coverage-times-Linux-${{ runner.environment }}-${{ vars.DSH_CI_FAILOVER_LINUX || 'enterprise' }}-
+            coverage-times-Linux-hosted-
 
       # Redirect the Node compile cache (enabled by pnpm and TypeScript) off
       # the root partition's /tmp before the first pnpm call in this lane.
@@ -170,10 +156,9 @@ jobs:
           store_path=$(PNPM_CONFIG_STORE_DIR="$store_root" pnpm store path --silent)
           echo "path=$store_path" >> "$GITHUB_OUTPUT"
 
-      # Self-hosted runners reuse the shared persistent pnpm store.
-      # Hosted runners restore the remote cache into their ephemeral store.
+      # Hosted runners start with an empty store, so restore the remote cache
+      # into the ephemeral one before installing.
       - uses: actions/cache/restore@v6.1.0
-        if: vars.DSH_CI_FAILOVER_LINUX != 'selfhosted' || github.event.pull_request.user.login == 'dependabot[bot]'
         with:
           path: ${{ steps.pnpm-store.outputs.path }}
           key: ${{ runner.os }}-node-${{ env.PRIMARY_NODE_VERSION }}-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
@@ -201,10 +186,12 @@ jobs:
         uses: actions/cache/save@v6.1.0
         with:
           path: .coverage-times.json
-          key: coverage-times-Linux-${{ runner.environment }}-${{ vars.DSH_CI_FAILOVER_LINUX || 'enterprise' }}-${{ github.run_id }}-${{ github.run_attempt }}
+          key: coverage-times-Linux-hosted-${{ github.run_id }}-${{ github.run_attempt }}
 
   node-24-bench:
-    if: github.event_name == 'pull_request'
+    if: >-
+      github.event_name == 'pull_request'
+      && (github.event.action != 'edited' || github.event.changes.base != null)
     runs-on: ubuntu-24.04
     name: node 24 / benchmarks
     # Wall-clock budgets need an otherwise idle runner, so this job runs the
@@ -264,21 +251,12 @@ jobs:
           retention-days: 7
 
   node-24-consumers:
-    if: github.event_name == 'pull_request'
-    runs-on: >-
-      ${{ vars.DSH_CI_FAILOVER_LINUX == 'blacksmith' && 'blacksmith-16vcpu-ubuntu-2404'
-          || vars.DSH_CI_FAILOVER_LINUX == 'selfhosted'
-          && github.event.pull_request.user.login != 'dependabot[bot]'
-          && fromJSON('["self-hosted", "linux", "x64", "vm-backup"]')
-          || 'dsh-ubuntu-24-04-16core' }}
+    if: >-
+      github.event_name == 'pull_request'
+      && (github.event.action != 'edited' || github.event.changes.base != null)
+    runs-on: ubuntu-24.04
     name: node 24 / snapshots and artifacts
     env:
-      # Shared hosts expose host CPUs, not an isolated allocation.
-      DSH_GATE_CONCURRENCY: ${{ vars.DSH_CI_FAILOVER_LINUX == 'selfhosted' && github.event.pull_request.user.login != 'dependabot[bot]' && '10' || '' }}
-      DSH_OXLINT_THREADS: ${{ vars.DSH_CI_FAILOVER_LINUX == 'selfhosted' && github.event.pull_request.user.login != 'dependabot[bot]' && '8' || '' }}
-      DSH_PUBLINT_CONCURRENCY: ${{ vars.DSH_CI_FAILOVER_LINUX == 'selfhosted' && github.event.pull_request.user.login != 'dependabot[bot]' && '8' || '' }}
-      DSH_WEB_SNAPSHOT_WORKERS: ${{ vars.DSH_CI_FAILOVER_LINUX == 'selfhosted' && github.event.pull_request.user.login != 'dependabot[bot]' && '6' || '' }}
-      DSH_SNAPSHOT_MAX_CONCURRENCY: ${{ vars.DSH_CI_FAILOVER_LINUX == 'selfhosted' && github.event.pull_request.user.login != 'dependabot[bot]' && '12' || '' }}
       DSH_NODE_COMPAT_SKIP_TYPECHECK: '1'
       # A failing gate aborts its running siblings: a failing build stops the
       # independent Node compatibility smoke, and a failing reader (e.g.
@@ -322,16 +300,15 @@ jobs:
       # entry until it evicts, after which the store is cold. Self-hosted runners
       # reuse the shared persistent store instead of restoring the remote archive.
       - uses: actions/cache/restore@v6.1.0
-        if: vars.DSH_CI_FAILOVER_LINUX != 'selfhosted' || github.event.pull_request.user.login == 'dependabot[bot]'
         with:
           path: ${{ steps.pnpm-store.outputs.path }}
           key: ${{ runner.os }}-node-${{ env.PRIMARY_NODE_VERSION }}-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
           restore-keys: |
             ${{ runner.os }}-node-${{ env.PRIMARY_NODE_VERSION }}-pnpm-
 
-      # Self-hosted runners retain their own browser cache between jobs.
+      # Browsers are large and immutable per lockfile, so the remote cache
+      # carries them across runs instead of re-downloading.
       - uses: actions/cache/restore@v6.1.0
-        if: vars.DSH_CI_FAILOVER_LINUX != 'selfhosted' || github.event.pull_request.user.login == 'dependabot[bot]'
         with:
           path: ${{ env.PLAYWRIGHT_BROWSERS_PATH }}
           key: ${{ runner.os }}-playwright-${{ hashFiles('pnpm-lock.yaml') }}
@@ -351,37 +328,11 @@ jobs:
           if (( install_status != 0 )); then exit "$install_status"; fi
           exit "$sandbox_status"
 
-      # Blacksmith's Ubuntu HTTP archive endpoints can be unreachable while HTTPS works.
-      - name: Use HTTPS for Ubuntu archives on Blacksmith
-        if: vars.DSH_CI_FAILOVER_LINUX == 'blacksmith'
-        run: |
-          sudo python3 - <<'PY'
-          from pathlib import Path
-          import re
-
-          apt = Path('/etc/apt')
-          sources = [apt / 'sources.list', apt / 'blacksmith-ubuntu-mirrors.txt',
-                     *(apt / 'sources.list.d').glob('*.list'),
-                     *(apt / 'sources.list.d').glob('*.sources')]
-          for source in sources:
-              if source.is_file():
-                  source.write_text(re.sub(
-                      r'http://((?:[a-z]{2}\.)?archive\.ubuntu\.com|security\.ubuntu\.com)/',
-                      r'https://\1/', source.read_text()))
-          PY
-
       - name: Install Playwright Chromium, WebKit, and hosted dependencies
-        if: vars.DSH_CI_FAILOVER_LINUX != 'selfhosted' || github.event.pull_request.user.login == 'dependabot[bot]'
         # Ephemeral runner images can carry Ubuntu mirrors whose HTTP endpoints are unreachable.
         run: |
           sudo find /etc/apt -maxdepth 2 -type f \( -name '*.list' -o -name '*.sources' \) -exec sed -i -E 's@http://([a-z]{2}\.)?archive\.ubuntu\.com/ubuntu@https://archive.ubuntu.com/ubuntu@g; s@http://security\.ubuntu\.com/ubuntu@https://security.ubuntu.com/ubuntu@g' {} +
           pnpm --filter @deepseek-ai/dsh-web-frontend exec playwright install --with-deps chromium webkit
-
-      # The persistent VM image owns Playwright's Linux system packages; do
-      # not mutate the shared host with apt on every failover run.
-      - name: Install Playwright Chromium and WebKit on the failover VM
-        if: vars.DSH_CI_FAILOVER_LINUX == 'selfhosted' && github.event.pull_request.user.login != 'dependabot[bot]'
-        run: pnpm --filter @deepseek-ai/dsh-web-frontend exec playwright install chromium webkit
 
       - name: Build and execute the Linux Office runtime
         run: CI=true pnpm run prepare:primary-runtime --target linux-x64 --output "$RUNNER_TEMP/office-runtime" --cache "$RUNNER_TEMP/office-runtime-downloads"
@@ -391,18 +342,12 @@ jobs:
 
 
   node-compat:
-    if: github.event_name == 'pull_request'
-    # Under the selfhosted leg this job admits only repository-owned PR code
-    # to the persistent shared VM; the blacksmith branch targets ephemeral
-    # runners and carries none of those predicates.
-    runs-on: >-
-      ${{ vars.DSH_CI_FAILOVER_LINUX == 'blacksmith' && 'blacksmith-4vcpu-ubuntu-2404'
-          || vars.DSH_CI_FAILOVER_LINUX == 'selfhosted'
-          && github.event.pull_request.head.repo.full_name == github.repository
-          && github.event.pull_request.head.repo.fork == false
-          && github.event.pull_request.user.login != 'dependabot[bot]'
-          && fromJSON('["self-hosted", "linux", "x64", "vm-backup"]')
-          || matrix.runner }}
+    if: >-
+      github.event_name == 'pull_request'
+      && (github.event.action != 'edited' || github.event.changes.base != null)
+    # Standard hosted runners only: this workflow never dispatches to a
+    # persistent pool, so no fork predicate is needed here anymore.
+    runs-on: ${{ matrix.runner }}
     name: ${{ matrix.name }}
     env:
       DSH_GATE_CONCURRENCY: ${{ matrix.gate_concurrency }}
@@ -484,7 +429,9 @@ jobs:
         run: pnpm exec vitest run packages/boot/app-boot/tests/loader-shape.compat.spec.ts
 
   python-sdk:
-    if: github.event_name == 'pull_request'
+    if: >-
+      github.event_name == 'pull_request'
+      && (github.event.action != 'edited' || github.event.changes.base != null)
     runs-on: ubuntu-latest
     name: python 3.10 / keyless SDK
     steps:
@@ -512,7 +459,9 @@ jobs:
   # keyless black-box, and trusted real-API path. Linux/Windows x64 block PRs;
   # Linux ARM64 and both macOS architectures run in ci-master.yml.
   python-runtime:
-    if: github.event_name == 'pull_request'
+    if: >-
+      github.event_name == 'pull_request'
+      && (github.event.action != 'edited' || github.event.changes.base != null)
     needs: python-sdk
     name: python runtime / release-shaped matrix
     uses: ./.github/workflows/build-exe-for-python-sdk.yml
@@ -524,18 +473,11 @@ jobs:
 
   # Native builds and process tests block pull requests independently of coverage.
   # Observational checks reuse the successful build and remain non-blocking.
-  # Dependabot PRs are excluded from the self-hosted pool and stay queued for
-  # the hosted runner.
-  # Blacksmith uses 2 vCPU for file-serial native tests and 16 for coverage
-  # and the shared build/observational workspace.
   windows-build:
-    if: github.event_name == 'pull_request'
-    runs-on: >-
-      ${{ vars.DSH_CI_FAILOVER_WINDOWS == 'blacksmith' && 'blacksmith-16vcpu-windows-2025'
-          || vars.DSH_CI_FAILOVER_WINDOWS == 'selfhosted'
-          && github.event.pull_request.user.login != 'dependabot[bot]'
-          && fromJSON('["self-hosted", "dsh-win-ci", "windows"]')
-          || 'dsh-windows-2025-16core' }}
+    if: >-
+      github.event_name == 'pull_request'
+      && (github.event.action != 'edited' || github.event.changes.base != null)
+    runs-on: windows-2025
     name: windows node 24 / build & observational
     timeout-minutes: 60
     env:
@@ -579,7 +521,6 @@ jobs:
         shell: pwsh
         env:
           DSH_GATE_FAIL_FAST: ''
-          DSH_PUBLINT_CONCURRENCY: ${{ vars.DSH_CI_FAILOVER_WINDOWS == 'selfhosted' && github.event.pull_request.user.login != 'dependabot[bot]' && '8' || '' }}
         run: pnpm run check:ci:windows-observational-ready
       - name: Report Windows observational failures
         continue-on-error: true
@@ -591,20 +532,17 @@ jobs:
           $message | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
 
   windows-coverage:
-    if: github.event_name == 'pull_request'
-    runs-on: >-
-      ${{ vars.DSH_CI_FAILOVER_WINDOWS == 'blacksmith' && 'blacksmith-16vcpu-windows-2025'
-          || vars.DSH_CI_FAILOVER_WINDOWS == 'selfhosted'
-          && github.event.pull_request.user.login != 'dependabot[bot]'
-          && fromJSON('["self-hosted", "dsh-win-ci", "windows"]')
-          || 'dsh-windows-2025-16core' }}
+    if: >-
+      github.event_name == 'pull_request'
+      && (github.event.action != 'edited' || github.event.changes.base != null)
+    runs-on: windows-2025
     name: windows node 24 / coverage
     timeout-minutes: 120
     env:
-      # Shared hosts expose host CPUs, not an isolated allocation.
-      DSH_COVERAGE_MAX_WORKERS: ${{ vars.DSH_CI_FAILOVER_WINDOWS == 'selfhosted' && github.event.pull_request.user.login != 'dependabot[bot]' && '6' || '' }}
-      DSH_COVERAGE_PARTITIONS: ${{ vars.DSH_CI_FAILOVER_WINDOWS == 'selfhosted' && github.event.pull_request.user.login != 'dependabot[bot]' && '4' || '' }}
-      DSH_GATE_CONCURRENCY: ${{ vars.DSH_CI_FAILOVER_WINDOWS == 'selfhosted' && github.event.pull_request.user.login != 'dependabot[bot]' && '3' || '' }}
+      # Partition and worker counts are left unset so run-gates derives them
+      # from the runner's available parallelism: ubuntu-24.04 and windows-2025
+      # are both 4 vCPU / 16 GB, which yields three instrumented partitions and
+      # one exempt worker without oversubscribing the host.
       DSH_COVERAGE_TEST_TIMEOUT_MS: '90000'
       # A gate failure aborts the sibling gate instead of waiting out its
       # multi-minute instrumented run.
@@ -623,9 +561,9 @@ jobs:
         uses: actions/cache/restore@v6.1.0
         with:
           path: .coverage-times.json
-          key: coverage-times-Windows-${{ runner.environment }}-${{ vars.DSH_CI_FAILOVER_WINDOWS || 'enterprise' }}-${{ github.run_id }}-${{ github.run_attempt }}
+          key: coverage-times-Windows-hosted-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
-            coverage-times-Windows-${{ runner.environment }}-${{ vars.DSH_CI_FAILOVER_WINDOWS || 'enterprise' }}-
+            coverage-times-Windows-hosted-
       - name: Enable Developer Mode (symlink support)
         shell: pwsh
         run: >-
@@ -666,16 +604,13 @@ jobs:
         uses: actions/cache/save@v6.1.0
         with:
           path: .coverage-times.json
-          key: coverage-times-Windows-${{ runner.environment }}-${{ vars.DSH_CI_FAILOVER_WINDOWS || 'enterprise' }}-${{ github.run_id }}-${{ github.run_attempt }}
+          key: coverage-times-Windows-hosted-${{ github.run_id }}-${{ github.run_attempt }}
 
   windows-native-tests:
-    if: github.event_name == 'pull_request'
-    runs-on: >-
-      ${{ vars.DSH_CI_FAILOVER_WINDOWS == 'blacksmith' && 'blacksmith-2vcpu-windows-2025'
-          || vars.DSH_CI_FAILOVER_WINDOWS == 'selfhosted'
-          && github.event.pull_request.user.login != 'dependabot[bot]'
-          && fromJSON('["self-hosted", "dsh-win-ci", "windows"]')
-          || 'dsh-windows-2025-16core' }}
+    if: >-
+      github.event_name == 'pull_request'
+      && (github.event.action != 'edited' || github.event.changes.base != null)
+    runs-on: windows-2025
     name: windows node 24 / native tests
     timeout-minutes: 60
     steps:
@@ -728,22 +663,15 @@ jobs:
   all-checks-passed:
     name: all checks passed
     # This bookkeeping-only verdict must not depend on custom-pool
-    # provisioning — and under Linux failover it follows the same selector as
-    # the worker jobs it aggregates, so a standard-hosted outage cannot strand
-    # the branch-protection verdict either. It retargets with the Linux switch
-    # (DSH_CI_FAILOVER_LINUX), not the Windows one, because it aggregates the
-    # required Linux workers and runs on the vm-backup pool. Under the
-    # 'blacksmith' value the verdict shares Blacksmith's pool with its workers
-    # through the same selector, so a Blacksmith outage strands both together —
-    # the accepted consequence of the explicit opt-in switch.
-    runs-on: >-
-      ${{ vars.DSH_CI_FAILOVER_LINUX == 'blacksmith' && 'blacksmith-4vcpu-ubuntu-2404'
-          || vars.DSH_CI_FAILOVER_LINUX == 'selfhosted'
-          && github.event.pull_request.user.login != 'dependabot[bot]'
-          && fromJSON('["self-hosted", "linux", "x64", "vm-backup"]')
-          || 'ubuntu-latest' }}
+    # provisioning, so it stays on a standard hosted runner regardless of any
+    # failover switch.
+    runs-on: ubuntu-latest
     needs: [node-24, node-24-coverage, node-24-bench, node-24-consumers, node-compat, python-sdk, python-runtime, windows-build, windows-native-tests]
-    if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+    # Same base-change guard as the worker jobs: an edit that did not move the
+    # base leaves the previous verdict valid.
+    if: >-
+      ${{ !cancelled() && github.event_name == 'pull_request'
+          && (github.event.action != 'edited' || github.event.changes.base != null) }}
     steps:
       - name: Fail if any needed job did not succeed
         if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || contains(needs.*.result, 'skipped')
