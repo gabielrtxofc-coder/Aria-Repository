@@ -10,7 +10,8 @@
  * @module @deepseek-ai/dsh-mission-continuity
  */
 
-import type { UncertainBacklog, UncertainOperation } from './types.ts'
+import { MAX_DIAGNOSTIC_LENGTH } from './runtime.ts'
+import type { MissionUncertaintyScope, UncertainBacklog, UncertainOperation } from './types.ts'
 
 /**
  * How many unknown outcomes one session records, whether or not the bounded
@@ -65,4 +66,66 @@ export function unacknowledgedUncertainty(
     unlisted: Math.max(0, outstanding - operations.length),
     count: outstanding,
   }
+}
+
+/** One authorization's frozen scope and the exact bounded message shown for it. */
+export interface PresentedUncertaintyScope {
+  /** Durable scope stored on the mission authorization. */
+  readonly scope: MissionUncertaintyScope
+  /** Human-facing diagnostic rendered only from the stored scope. */
+  readonly message: string
+}
+
+/** Freeze a scope and its nested operation records against caller mutation. */
+export function freezeUncertaintyScope(scope: MissionUncertaintyScope): MissionUncertaintyScope {
+  const operations = Object.freeze(scope.operations.map(operation => Object.freeze({ ...operation })))
+  return Object.freeze({ ...scope, operations })
+}
+
+/**
+ * Freeze and render the uncertainty interval at authorization time.
+ *
+ * The watermark is the ordinal of the last `TOOL_OUTCOME_UNKNOWN` result already
+ * in the session log. Later results receive larger ordinals, even if they push
+ * an older identity out of the projection's bounded window. The persisted
+ * interval plus identities printed in the message is therefore independent of
+ * future fan-out completion order and survives index reconstruction.
+ *
+ * @param from - previously acknowledged watermark.
+ * @param through - total unknown results already recorded at capture time.
+ * @param backlog - exact unacknowledged doubts to present.
+ * @returns immutable scope and a message bounded to the durable diagnostic limit.
+ */
+export function presentUncertaintyScope(
+  from: number,
+  through: number,
+  backlog: UncertainBacklog,
+): PresentedUncertaintyScope {
+  if (!Number.isSafeInteger(from) || from < 0
+    || !Number.isSafeInteger(through) || through < from
+    || backlog.count !== through - from
+    || backlog.operations.length + backlog.unlisted !== backlog.count) {
+    throw new Error('uncertainty authorization scope does not match its durable watermark')
+  }
+  const shown: UncertainOperation[] = []
+  const head = `Interrupted tool calls whose outcome is unknown: ${backlog.count} recorded`
+  const trailer = '. Verify the external state before this mission continues.'
+  const format = (operations: readonly UncertainOperation[], unlisted: number): string => {
+    const details = operations.length === 0
+      ? ''
+      : ` (${operations.map(operation => `${operation.name} [${operation.callId}]`).join(', ')}`
+        + `${unlisted > 0 ? `, and ${unlisted} more` : ''})`
+    const aggregate = operations.length === 0 && unlisted > 0 ? ` (${unlisted} identities not listed)` : ''
+    return `${head}${details || aggregate}${trailer}`
+  }
+  for (const operation of backlog.operations) {
+    const candidate = [...shown, operation]
+    const remaining = backlog.count - candidate.length
+    if (format(candidate, remaining).length > MAX_DIAGNOSTIC_LENGTH) break
+    shown.push(operation)
+  }
+  const unlisted = backlog.count - shown.length
+  const scope = freezeUncertaintyScope({ from, through, operations: shown, unlisted })
+  const message = format(shown, unlisted).slice(0, MAX_DIAGNOSTIC_LENGTH)
+  return { scope, message }
 }

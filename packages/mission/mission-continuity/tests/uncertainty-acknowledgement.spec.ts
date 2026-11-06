@@ -12,7 +12,7 @@
 import { randomUUID } from 'node:crypto'
 import { rm } from 'node:fs/promises'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Context } from '@deepseek-ai/cordis'
 import { ToolCallId, createToolResultMessage } from '@deepseek-ai/dsh-llm'
 import type { Agent } from '@deepseek-ai/dsh-agent'
@@ -73,19 +73,22 @@ async function adoptAgent(harness: MissionHarness): Promise<Agent> {
   return handle.agent
 }
 
+/** One started operation whose eventual result is not yet durable. */
+interface OpenUnknownCall {
+  readonly turn: number
+  readonly callId: string
+}
+
 /**
- * Record one call whose committed result says the outcome is unknown — the
- * durable fact recovery cannot resolve on its own.
+ * Begin a durable tool call but deliberately leave its result open.
  * @param agent - owning live agent.
- * @param callId - identity of the call whose effect nobody confirmed.
+ * @param callId - identity of the call whose effect may be uncertain.
+ * @returns the started call for a later result append.
  */
-function recordUnknownCall(agent: Agent, callId: string): void {
+function beginUnknownCall(agent: Agent, callId: string): OpenUnknownCall {
   const turn = nextTurn(agent)
   agent.session.append('turn/start', { turn })
   agent.session.append('step/start', { turn, step: 1 })
-  // The round has to be complete, not just foldable: the acknowledgement tests read
-  // this log back after a restart, and a tool call the model never advertised is
-  // corruption to that reader.
   agent.session.append('assistant/message', {
     turn,
     step: 1,
@@ -102,17 +105,96 @@ function recordUnknownCall(agent: Agent, callId: string): void {
   agent.session.append('tool/call', {
     turn, step: 1, callId: ToolCallId(callId), name: 'external_effect', arguments: '{}',
   })
+  return { turn, callId }
+}
+
+/** Commit the unknown result and close one started operation. */
+function finishUnknownCall(agent: Agent, call: OpenUnknownCall): void {
   agent.session.append('tool/result', {
-    turn, step: 1,
+    turn: call.turn, step: 1,
     message: createToolResultMessage({
-      callId: ToolCallId(callId),
+      callId: ToolCallId(call.callId),
       content: [{ type: 'text', text: 'the tool did not report back' }],
       isError: true,
     }),
     error: { name: 'ToolOutcomeUnknownError', code: TOOL_OUTCOME_UNKNOWN },
   }, { surfaceOp: 'append' })
-  agent.session.append('step/end', { turn, step: 1 })
-  agent.session.append('turn/end', { turn, reason: { kind: 'completed' } })
+  agent.session.append('step/end', { turn: call.turn, step: 1 })
+  agent.session.append('turn/end', { turn: call.turn, reason: { kind: 'completed' } })
+}
+
+/** One assistant step that has dispatched calls whose results are not yet durable. */
+interface OpenUnknownFanout {
+  readonly turn: number
+  readonly callIds: readonly string[]
+}
+
+/** Begin a fan-out step and durably record every dispatched call. */
+function beginUnknownFanout(agent: Agent, callIds: readonly string[]): OpenUnknownFanout {
+  const turn = nextTurn(agent)
+  agent.session.append('turn/start', { turn })
+  agent.session.append('step/start', { turn, step: 1 })
+  agent.session.append('assistant/message', {
+    turn,
+    step: 1,
+    stream: [],
+    message: {
+      id: randomUUID(),
+      role: 'assistant',
+      content: callIds.map(callId => ({
+        type: 'tool-call' as const,
+        id: ToolCallId(callId),
+        name: 'external_effect',
+        arguments: '{}',
+      })),
+      source: { kind: 'model', provider: 'mock', model: 'mock', api: 'mock' },
+      stopReason: 'tool-calls',
+      usage: { input: 0, output: 0, cache: { read: 0, write: 0 }, cost: { total: 0 } },
+    },
+  }, { surfaceOp: 'append' })
+  for (const callId of callIds) {
+    agent.session.append('tool/call', {
+      turn, step: 1, callId: ToolCallId(callId), name: 'external_effect', arguments: '{}',
+    })
+  }
+  return { turn, callIds }
+}
+
+/** Append unknown results in an explicitly chosen completion order. */
+function finishUnknownFanout(
+  agent: Agent,
+  fanout: OpenUnknownFanout,
+  resultOrder: readonly string[] = fanout.callIds,
+): void {
+  if (resultOrder.length !== fanout.callIds.length
+    || new Set(resultOrder).size !== fanout.callIds.length
+    || resultOrder.some(callId => !fanout.callIds.includes(callId))) {
+    throw new Error('fan-out result order must be a permutation of its call ids')
+  }
+  for (const callId of resultOrder) {
+    agent.session.append('tool/result', {
+      turn: fanout.turn,
+      step: 1,
+      message: createToolResultMessage({
+        callId: ToolCallId(callId),
+        content: [{ type: 'text', text: 'the tool did not report back' }],
+        isError: true,
+      }),
+      error: { name: 'ToolOutcomeUnknownError', code: TOOL_OUTCOME_UNKNOWN },
+    }, { surfaceOp: 'append' })
+  }
+  agent.session.append('step/end', { turn: fanout.turn, step: 1 })
+  agent.session.append('turn/end', { turn: fanout.turn, reason: { kind: 'completed' } })
+}
+
+/** Record one call whose committed result says the outcome is unknown. */
+function recordUnknownCall(agent: Agent, callId: string): void {
+  finishUnknownCall(agent, beginUnknownCall(agent, callId))
+}
+
+/** Record a complete fan-out whose results all have unknown outcomes. */
+function recordUnknownFanout(agent: Agent, callIds: readonly string[], resultOrder = callIds): void {
+  finishUnknownFanout(agent, beginUnknownFanout(agent, callIds), resultOrder)
 }
 
 /** The doubts the session log records, in the order the fold saw them. */
@@ -137,6 +219,181 @@ async function startMission(harness: MissionHarness): Promise<Agent> {
 }
 
 describe('acknowledgement scope', () => {
+  it('freezes the presented scope and requires a fresh authorization for a later doubt', async () => {
+    const { root, cleanup } = await tempRoot('dsh-mission-ack-freeze-')
+    cleanups.push(cleanup)
+    const harness = await mount(root, [textResponse('continued')], { sweepOnStartup: false })
+    const agent = await startMission(harness)
+    const missions = harness.ctx.missions
+    recordUnknownCall(agent, 'call-presented')
+
+    expect(await missions.sweep()).toMatchObject({ considered: 1, held: 1, resumed: 0 })
+    const firstHold = missions.get(agent)!
+    expect(Object.isFrozen(firstHold.authorization)).toBe(true)
+    expect(Object.isFrozen(firstHold.authorization?.uncertaintyScope)).toBe(true)
+    expect(Object.isFrozen(firstHold.authorization?.uncertaintyScope?.operations)).toBe(true)
+    expect(Object.isFrozen(firstHold.authorization?.uncertaintyScope?.operations[0])).toBe(true)
+    expect(firstHold.authorization?.uncertaintyScope).toMatchObject({
+      from: 0,
+      through: 1,
+      operations: [{ callId: 'call-presented', name: 'external_effect' }],
+      unlisted: 0,
+    })
+    const requestsBeforeDecision = harness.adapter.requests.length
+
+    // A second result arrives while the first authorization is waiting. Its
+    // identity and ordinal cannot be grafted onto the authorization already shown.
+    recordUnknownCall(agent, 'call-later')
+    await missions.resume(agent, { id: firstHold.id, revision: firstHold.revision })
+    expect(missions.get(agent)?.uncertainAcknowledged).toBe(1)
+    expect(harness.adapter.requests).toHaveLength(requestsBeforeDecision)
+    expect(await missions.sweep()).toMatchObject({ considered: 1, held: 1, resumed: 0 })
+
+    const secondHold = missions.get(agent)!
+    expect(secondHold.authorization?.uncertaintyScope).toMatchObject({
+      from: 1,
+      through: 2,
+      operations: [{ callId: 'call-later', name: 'external_effect' }],
+      unlisted: 0,
+    })
+    await missions.resume(agent, { id: secondHold.id, revision: secondHold.revision })
+    expect(missions.get(agent)?.uncertainAcknowledged).toBe(2)
+    expect(await missions.sweep()).toMatchObject({ considered: 1, resumed: 1, held: 0 })
+  }, 120_000)
+
+  it('rejects a corrupted acknowledgement watermark before authorizing uncertainty', async () => {
+    const { root, cleanup } = await tempRoot('dsh-mission-ack-invalid-watermark-')
+    cleanups.push(cleanup)
+    const harness = await mount(root, [], { sweepOnStartup: false })
+    const agent = await startMission(harness)
+    const mission = harness.ctx.missions.get(agent)
+    const state = harness.ctx.sessionProjections.stateOf(agent.session, 'mission')
+    if (mission === null || state === undefined || state.current === null) {
+      throw new Error('expected a live mission projection')
+    }
+    vi.spyOn(harness.ctx.sessionProjections, 'stateOf').mockReturnValue({
+      ...state,
+      current: { ...state.current, uncertainAcknowledged: 1 },
+    })
+
+    await expect(harness.ctx.missions.authorize(agent, mission, {
+      code: UNCERTAIN_OPERATIONS,
+      message: 'caller text is ignored',
+    })).rejects.toMatchObject({ code: 'MISSION_INVALID_AUTHORIZATION' })
+  })
+
+  it('rejects a persisted scope that no longer matches the durable result history', async () => {
+    const { root, cleanup } = await tempRoot('dsh-mission-ack-invalid-scope-')
+    cleanups.push(cleanup)
+    const harness = await mount(root, [], { sweepOnStartup: false })
+    const agent = await startMission(harness)
+    recordUnknownCall(agent, 'scope-corruption-call')
+    expect(await harness.ctx.missions.sweep()).toMatchObject({ held: 1 })
+    const mission = harness.ctx.missions.get(agent)
+    const state = harness.ctx.sessionProjections.stateOf(agent.session, 'mission')
+    if (mission === null || state === undefined) throw new Error('expected a held mission projection')
+    vi.spyOn(harness.ctx.sessionProjections, 'stateOf').mockReturnValue({
+      ...state,
+      uncertainOperations: [],
+      uncertainOverflow: undefined,
+    })
+
+    await expect(harness.ctx.missions.resume(agent, mission))
+      .rejects.toMatchObject({ code: 'MISSION_INVALID_AUTHORIZATION' })
+  })
+
+  it('does not report a hold if the service returns without persisted authorization', async () => {
+    const { root, cleanup } = await tempRoot('dsh-mission-ack-missing-persistence-')
+    cleanups.push(cleanup)
+    const harness = await mount(root, [], { sweepOnStartup: false })
+    const agent = await startMission(harness)
+    recordUnknownCall(agent, 'missing-authorization-call')
+    const mission = harness.ctx.missions.get(agent)
+    if (mission === null) throw new Error('expected a live mission')
+    vi.spyOn(harness.ctx.missions, 'authorize').mockResolvedValue(mission)
+
+    expect(await harness.ctx.missions.sweep()).toMatchObject({ held: 0, failed: 1 })
+    expect(harness.ctx.missions.get(agent)?.authorization).toBeUndefined()
+  })
+
+  it('keeps a result arriving after the hold outside its captured scope', async () => {
+    const { root, cleanup } = await tempRoot('dsh-mission-ack-late-result-')
+    cleanups.push(cleanup)
+    const harness = await mount(root, [textResponse('continued')], { sweepOnStartup: false })
+    const agent = await startMission(harness)
+    const missions = harness.ctx.missions
+    recordUnknownCall(agent, 'call-already-unknown')
+    const open = beginUnknownFanout(agent, ['call-result-after-hold'])
+
+    expect(await missions.sweep()).toMatchObject({ considered: 1, held: 1, resumed: 0 })
+    const held = missions.get(agent)!
+    expect(held.authorization?.uncertaintyScope?.through).toBe(1)
+    finishUnknownFanout(agent, open)
+    await missions.resume(agent, { id: held.id, revision: held.revision })
+    expect(missions.get(agent)?.uncertainAcknowledged).toBe(1)
+    expect(await missions.sweep()).toMatchObject({ considered: 1, held: 1, resumed: 0 })
+    expect(missions.get(agent)?.authorization?.uncertaintyScope).toMatchObject({
+      from: 1,
+      through: 2,
+      operations: [{ callId: 'call-result-after-hold', name: 'external_effect' }],
+      unlisted: 0,
+    })
+  }, 120_000)
+
+  it.each(['forward', 'reverse'] as const)(
+    'freezes fan-out identities and overflow under %s result ordering', async order => {
+      const { root, cleanup } = await tempRoot(`dsh-mission-ack-overflow-${order}-`)
+      cleanups.push(cleanup)
+      const harness = await mount(root, [textResponse('continued')], { sweepOnStartup: false })
+      const agent = await startMission(harness)
+      const missions = harness.ctx.missions
+      const calls = Array.from({ length: 26 }, (_, index) => `fan-${index}`)
+      recordUnknownFanout(agent, calls, order === 'forward' ? calls : [...calls].reverse())
+      expect(unnamed(harness, agent)).toBe(4)
+      expect(await missions.sweep()).toMatchObject({ considered: 1, held: 1, resumed: 0 })
+      const held = missions.get(agent)!
+      const scope = held.authorization?.uncertaintyScope
+      expect(scope?.from).toBe(0)
+      expect(scope?.through).toBe(26)
+      expect(scope?.operations.length).toBeGreaterThan(0)
+      expect(scope?.unlisted).toBe(26 - (scope?.operations.length ?? 0))
+      expect(held.authorization?.message).toContain('26 recorded')
+
+      recordUnknownCall(agent, 'fan-later')
+      await missions.resume(agent, { id: held.id, revision: held.revision })
+      expect(missions.get(agent)?.uncertainAcknowledged).toBe(26)
+      expect(await missions.sweep()).toMatchObject({ considered: 1, held: 1, resumed: 0 })
+      expect(missions.get(agent)?.authorization?.uncertaintyScope).toMatchObject({
+        from: 26,
+        through: 27,
+        operations: [{ callId: 'fan-later', name: 'external_effect' }],
+        unlisted: 0,
+      })
+    },
+  )
+
+  it('serializes a result racing with resume on the durable event log', async () => {
+    const { root, cleanup } = await tempRoot('dsh-mission-ack-race-')
+    cleanups.push(cleanup)
+    const harness = await mount(root, [textResponse('continued')], { sweepOnStartup: false })
+    const agent = await startMission(harness)
+    const missions = harness.ctx.missions
+    recordUnknownCall(agent, 'call-before-race')
+    expect(await missions.sweep()).toMatchObject({ considered: 1, held: 1 })
+    const held = missions.get(agent)!
+
+    // resume() commits its mission/change synchronously before its first await.
+    // This queued result therefore lands either before that event and is rejected
+    // by the frozen scope, or afterwards and remains a later ordinal; it cannot
+    // be silently included by a fresh projection read during resume.
+    const later = Promise.resolve().then(() => recordUnknownCall(agent, 'call-during-resume'))
+    const resumed = missions.resume(agent, { id: held.id, revision: held.revision })
+    await Promise.all([resumed, later])
+    expect(missions.get(agent)?.uncertainAcknowledged).toBe(1)
+    expect(await missions.sweep()).toMatchObject({ considered: 1, held: 1, resumed: 0 })
+    expect(missions.get(agent)?.authorization?.uncertaintyScope).toMatchObject({ from: 1, through: 2 })
+  }, 120_000)
+
   /**
    * Reproduced defect (B-1): the decision that cleared two unknown outcomes was
    * recorded as a property of the whole session, so every doubt recorded after
@@ -232,6 +489,40 @@ describe('acknowledgement scope', () => {
     expect(reheld.authorization?.message).toContain('2 recorded')
     await harness.ctx.missions.resume(agent, { id: reheld.id, revision: reheld.revision })
     expect(harness.ctx.missions.get(agent)?.uncertainAcknowledged).toBe(3)
+  }, 120_000)
+
+  it('rebuilds the original scope and later doubt separately after restart', async () => {
+    const { root, cleanup } = await tempRoot('dsh-mission-ack-scope-rebuild-')
+    cleanups.push(cleanup)
+    const first = await mount(root, [textResponse('continued')], { sweepOnStartup: false })
+    const agent = await startMission(first)
+    recordUnknownCall(agent, 'call-captured')
+    expect(await first.ctx.missions.sweep()).toMatchObject({ considered: 1, held: 1 })
+    const original = first.ctx.missions.get(agent)!
+    expect(original.authorization?.uncertaintyScope?.through).toBe(1)
+    recordUnknownCall(agent, 'call-after-capture')
+    await stopHarness(first)
+    contexts.splice(contexts.indexOf(first.ctx), 1)
+
+    await rm(join(root, 'storages', 'mission_continuity'), { recursive: true, force: true })
+    const second = await mount(root, [textResponse('continued')], { sweepOnStartup: false })
+    const restored = await adoptAgent(second)
+    const rebuilt = second.ctx.missions.get(restored)!
+    expect(rebuilt.authorization?.uncertaintyScope).toMatchObject({
+      from: 0,
+      through: 1,
+      operations: [{ callId: 'call-captured', name: 'external_effect' }],
+    })
+    expect(uncertainIds(second, restored)).toEqual(['call-captured', 'call-after-capture'])
+
+    await second.ctx.missions.resume(restored, { id: rebuilt.id, revision: rebuilt.revision })
+    expect(second.ctx.missions.get(restored)?.uncertainAcknowledged).toBe(1)
+    expect(await second.ctx.missions.sweep()).toMatchObject({ considered: 1, held: 1, resumed: 0 })
+    expect(second.ctx.missions.get(restored)?.authorization?.uncertaintyScope).toMatchObject({
+      from: 1,
+      through: 2,
+      operations: [{ callId: 'call-after-capture', name: 'external_effect' }],
+    })
   }, 120_000)
 
   it('keeps a cleared doubt cleared across a restart and an index rebuild', async () => {

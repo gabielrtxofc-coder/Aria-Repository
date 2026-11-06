@@ -8,6 +8,7 @@
 
 import { GoalId } from '@deepseek-ai/dsh-goal'
 import type { GoalRef } from '@deepseek-ai/dsh-goal'
+import { TOOL_OUTCOME_UNKNOWN } from '@deepseek-ai/dsh-session'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import {
   MAX_COMPLETION_CRITERIA,
@@ -16,12 +17,14 @@ import {
   MISSION_CHANGE_VERSION,
   MissionId,
   POLICY_CODE_PATTERN,
+  UNCERTAIN_OPERATIONS,
 } from './runtime.ts'
 import type {
   MissionChangeMeta,
   MissionClearChangeMeta,
   MissionSnapshotChangeMeta,
 } from './domain.ts'
+import { freezeUncertaintyScope } from './uncertainty.ts'
 import type {
   MissionAuthorization,
   MissionChangeOperation,
@@ -30,6 +33,7 @@ import type {
   MissionInterruptionKind,
   MissionRef,
   MissionSnapshot,
+  MissionUncertaintyScope,
 } from './types.ts'
 
 /** Operations that carry a complete post-mutation snapshot. */
@@ -59,6 +63,8 @@ export interface MissionFoldState {
   seenMissionIds: Set<string>
   /** Whether a clear tombstone makes a fresh start legal. */
   cleared: boolean
+  /** Durable unknown-result ordinal at this point in the session event log. */
+  uncertaintyRecorded: number
 }
 
 /**
@@ -66,7 +72,13 @@ export interface MissionFoldState {
  * @returns mutable state with no current mission or prior ref.
  */
 export function emptyMissionFoldState(): MissionFoldState {
-  return { mission: undefined, lastRef: undefined, seenMissionIds: new Set(), cleared: false }
+  return {
+    mission: undefined,
+    lastRef: undefined,
+    seenMissionIds: new Set(),
+    cleared: false,
+    uncertaintyRecorded: 0,
+  }
 }
 
 /** Whether a value is a JSON record rather than an array. */
@@ -163,15 +175,53 @@ function decodeCheckpoint(value: unknown): MissionCheckpoint {
   }
 }
 
+/** Decode an immutable uncertainty scope from one authorization. */
+function decodeUncertaintyScope(value: unknown): MissionUncertaintyScope {
+  if (!isRecord(value)) throw new Error('mission authorization uncertaintyScope must be an object')
+  exactKeys(value, ['from', 'through', 'operations', 'unlisted'], 'mission authorization uncertaintyScope')
+  const from = nonNegativeInteger(value['from'], 'authorization.uncertaintyScope.from')
+  const through = nonNegativeInteger(value['through'], 'authorization.uncertaintyScope.through')
+  const unlisted = nonNegativeInteger(value['unlisted'], 'authorization.uncertaintyScope.unlisted')
+  const rawOperations = value['operations']
+  if (!Array.isArray(rawOperations) || rawOperations.length > 22) {
+    throw new Error('mission authorization uncertaintyScope.operations must be a bounded array')
+  }
+  const operations = rawOperations.map((raw, index) => {
+    if (!isRecord(raw)) throw new Error(`mission authorization uncertaintyScope.operations[${index}] must be an object`)
+    exactKeys(raw, ['callId', 'name'], `mission authorization uncertaintyScope.operations[${index}]`)
+    return {
+      callId: boundedText(raw['callId'], `authorization.uncertaintyScope.operations[${index}].callId`, 2_000),
+      name: boundedText(raw['name'], `authorization.uncertaintyScope.operations[${index}].name`, 2_000),
+    }
+  })
+  if (through < from || operations.length + unlisted !== through - from) {
+    throw new Error('mission authorization uncertaintyScope does not account for its reviewed interval')
+  }
+  if (new Set(operations.map(operation => operation.callId)).size !== operations.length) {
+    throw new Error('mission authorization uncertaintyScope repeats a call identity')
+  }
+  return freezeUncertaintyScope({ from, through, operations, unlisted })
+}
+
 /** Decode the pending authorization record. */
 function decodeAuthorization(value: unknown): MissionAuthorization {
   if (!isRecord(value)) throw new Error('mission change mission.authorization must be an object')
-  exactKeys(value, ['code', 'message'], 'mission change mission.authorization')
+  exactKeys(value, ['code', 'message', 'uncertaintyScope'], 'mission change mission.authorization')
   const code = value['code']
   if (typeof code !== 'string' || !POLICY_CODE_PATTERN.test(code)) {
     throw new Error('mission change mission.authorization.code must be lower-kebab-case')
   }
-  return { code, message: boundedText(value['message'], 'mission.authorization.message', MAX_DIAGNOSTIC_LENGTH) }
+  const uncertaintyScope = value['uncertaintyScope'] === undefined
+    ? undefined
+    : decodeUncertaintyScope(value['uncertaintyScope'])
+  if (uncertaintyScope !== undefined && code !== UNCERTAIN_OPERATIONS) {
+    throw new Error('mission authorization uncertaintyScope requires uncertain-operations code')
+  }
+  return Object.freeze({
+    code,
+    message: boundedText(value['message'], 'mission.authorization.message', MAX_DIAGNOSTIC_LENGTH),
+    ...(uncertaintyScope === undefined ? {} : { uncertaintyScope }),
+  })
 }
 
 /** Decode one complete mission snapshot. */
@@ -299,19 +349,24 @@ export function applyMissionChange(state: MissionFoldState, change: MissionChang
       lastRef: { id: change.cleared.id, revision: change.cleared.revision },
       seenMissionIds: state.seenMissionIds,
       cleared: true,
+      uncertaintyRecorded: state.uncertaintyRecorded,
     }
   }
-  const next = change.mission
+  let next = change.mission
   const current = state.mission
   if (change.operation === 'start') {
     if (current !== undefined) throw new Error('mission start requires that no mission is current')
     if (next.revision !== 1) throw new Error('mission start must begin at revision 1')
+    if (next.authorization !== undefined || next.uncertainAcknowledged !== undefined) {
+      throw new Error('mission start cannot contain prior authorization or uncertainty acknowledgement')
+    }
     if (state.seenMissionIds.has(next.id)) throw new Error('mission start reuses a released mission id')
     return {
       mission: next,
       lastRef: { id: next.id, revision: next.revision },
       seenMissionIds: new Set([...state.seenMissionIds, next.id]),
       cleared: false,
+      uncertaintyRecorded: state.uncertaintyRecorded,
     }
   }
   if (current === undefined) throw new Error(`mission ${change.operation} requires a current mission`)
@@ -338,20 +393,78 @@ export function applyMissionChange(state: MissionFoldState, change: MissionChang
   if (before !== undefined && after !== undefined && after < before) {
     throw new Error('mission checkpoint cannot move backward')
   }
-  // A human review of unknown outcomes is a fact about the past: no later
-  // mutation may drop it or narrow what it covered, or a doubt somebody cleared
-  // would silently return to the backlog — and a record that lost the review
-  // would read as though nothing had been acknowledged at all.
+  // Acknowledgements are a durable prefix watermark in the event-ordered stream
+  // of TOOL_OUTCOME_UNKNOWN results. Only `resume` may advance it, and then only
+  // to the scope frozen on the authorization it consumes.
   const clearedBefore = current.uncertainAcknowledged ?? 0
   const clearedAfter = next.uncertainAcknowledged ?? 0
   if (clearedAfter < clearedBefore) {
     throw new Error('mission uncertainty acknowledgement cannot shrink')
+  }
+  if (change.operation === 'authorize') {
+    if (clearedAfter !== clearedBefore) {
+      throw new Error('mission authorization cannot advance uncertainty acknowledgement')
+    }
+    let authorization = next.authorization
+    if (authorization === undefined) throw new Error('mission authorize must record an authorization')
+    // Older logs did not persist the scope as a field, but the supervisor's
+    // durable authorization message recorded the exact backlog count. Rebuild
+    // that frozen interval from the message and event ordinal, never from a
+    // later `resume()` snapshot. Unrecognizable legacy messages stay unscoped
+    // and therefore cannot acknowledge any doubt.
+    if (authorization.code === UNCERTAIN_OPERATIONS && authorization.uncertaintyScope === undefined) {
+      const match = /^Interrupted tool calls whose outcome is unknown: (\d+) recorded/u.exec(authorization.message)
+      const presented = match?.[1] === undefined ? undefined : Number(match[1])
+      const through = presented === undefined ? undefined : clearedBefore + presented
+      if (presented !== undefined && Number.isSafeInteger(presented) && presented > 0
+        && through !== undefined && Number.isSafeInteger(through)
+        && through === state.uncertaintyRecorded) {
+        authorization = Object.freeze({
+          ...authorization,
+          uncertaintyScope: freezeUncertaintyScope({
+            from: clearedBefore, through, operations: [], unlisted: presented,
+          }),
+        })
+        next = { ...next, authorization }
+      }
+    }
+    const scope = authorization.uncertaintyScope
+    if (authorization.code === UNCERTAIN_OPERATIONS && scope !== undefined) {
+      if (scope.from !== clearedBefore || scope.through !== state.uncertaintyRecorded) {
+        throw new Error('mission uncertainty authorization scope does not match the event-log watermark')
+      }
+    } else if (authorization.code !== UNCERTAIN_OPERATIONS && scope !== undefined) {
+      throw new Error('only uncertain-operations authorization may carry an uncertainty scope')
+    }
+  } else if (change.operation === 'resume') {
+    const authorization = current.authorization
+    if (authorization === undefined) throw new Error('mission resume requires a pending authorization')
+    if (next.authorization !== undefined) throw new Error('mission resume must consume the pending authorization')
+    const scope = authorization.code === UNCERTAIN_OPERATIONS ? authorization.uncertaintyScope : undefined
+    let expectedAcknowledgement = clearedBefore
+    if (scope !== undefined) {
+      if (scope.from !== clearedBefore || scope.through > state.uncertaintyRecorded) {
+        throw new Error('mission resume uncertainty scope is invalid or exceeds the durable event log')
+      }
+      expectedAcknowledgement = Math.max(clearedBefore, scope.through)
+    }
+    if (clearedAfter !== expectedAcknowledgement) {
+      throw new Error('mission resume acknowledgement exceeds or differs from its presented scope')
+    }
+  } else {
+    if (clearedAfter !== clearedBefore) {
+      throw new Error('only mission resume may advance uncertainty acknowledgement')
+    }
+    if (JSON.stringify(next.authorization ?? null) !== JSON.stringify(current.authorization ?? null)) {
+      throw new Error('mission mutation cannot alter a pending authorization outside authorize or resume')
+    }
   }
   return {
     mission: next,
     lastRef: { id: next.id, revision: next.revision },
     seenMissionIds: state.seenMissionIds,
     cleared: false,
+    uncertaintyRecorded: state.uncertaintyRecorded,
   }
 }
 
@@ -364,8 +477,17 @@ export function applyMissionChange(state: MissionFoldState, change: MissionChang
 export function foldMission(events: readonly SessionEvent[]): MissionFoldState {
   let state = emptyMissionFoldState()
   for (const event of events) {
-    if (event.type !== 'mission/change') continue
-    state = applyMissionChange(state, decodeMissionChange(event.data))
+    if (event.type === 'tool/result' && event.data.error?.code === TOOL_OUTCOME_UNKNOWN) {
+      /* v8 ignore next -- a JavaScript array cannot contain enough events to reach MAX_SAFE_INTEGER. */
+      if (state.uncertaintyRecorded >= Number.MAX_SAFE_INTEGER) {
+        throw new Error('mission uncertainty event ordinal exceeds the safe integer range')
+      }
+      state = { ...state, uncertaintyRecorded: state.uncertaintyRecorded + 1 }
+      continue
+    }
+    if (event.type === 'mission/change') {
+      state = applyMissionChange(state, decodeMissionChange(event.data))
+    }
   }
   return state
 }

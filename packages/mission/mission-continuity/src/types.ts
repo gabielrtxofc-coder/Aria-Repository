@@ -75,6 +75,28 @@ export interface UncertainBacklog {
 }
 
 /**
+ * Frozen uncertainty review shown with one human authorization.
+ *
+ * `from` and `through` are ordinals in the append order of durable
+ * `TOOL_OUTCOME_UNKNOWN` results. The reviewed interval is `(from, through]`;
+ * this makes the scope stable even when later doubts move earlier call IDs into
+ * the bounded overflow. `operations` are the identities actually rendered in
+ * the authorization message. `unlisted` counts every reviewed doubt that was
+ * represented only by the aggregate count (including overflow and names omitted
+ * to stay within the diagnostic budget).
+ */
+export interface MissionUncertaintyScope {
+  /** Previously acknowledged uncertainty watermark at capture time. */
+  readonly from: number
+  /** Highest durable unknown-result ordinal covered by this authorization. */
+  readonly through: number
+  /** Operations whose identities were included in the authorization message. */
+  readonly operations: readonly UncertainOperation[]
+  /** Reviewed operations represented only by the total count. */
+  readonly unlisted: number
+}
+
+/**
  * Pending human authorization. While present, autonomous recovery must not run:
  * the mission waits for the decision that the approval seam owns.
  */
@@ -83,6 +105,8 @@ export interface MissionAuthorization {
   readonly code: string
   /** Non-empty explanation shown to humans and models. */
   readonly message: string
+  /** Immutable scope captured when an uncertain-operation hold is presented. */
+  readonly uncertaintyScope?: MissionUncertaintyScope | undefined
 }
 
 /** Whether autonomous recovery may resume this mission after a restart. */

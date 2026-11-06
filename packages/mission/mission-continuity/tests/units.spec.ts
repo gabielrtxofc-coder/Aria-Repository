@@ -4,14 +4,16 @@
  */
 
 import { describe, expect, it } from 'vitest'
+import { ToolCallId, createToolResultMessage } from '@deepseek-ai/dsh-llm'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
-import { SessionSeq } from '@deepseek-ai/dsh-session'
+import { SessionSeq, TOOL_OUTCOME_UNKNOWN } from '@deepseek-ai/dsh-session'
 import {
   applyMissionChange,
   decodeMissionChange,
   emptyMissionFoldState,
   foldMission,
   MAX_DIAGNOSTIC_LENGTH,
+  missionProjectionDefinition,
   recordedUncertainty,
   renderMissionRecoveryNotice,
   unacknowledgedUncertainty,
@@ -81,6 +83,52 @@ describe('uncertainty backlog', () => {
   })
 })
 
+describe('mission projection schema', () => {
+  it('rejects scopes with incomplete intervals, repeated identities, or an incompatible code', () => {
+    const base = missionProjectionDefinition.init()
+    const valid = {
+      code: 'uncertain-operations',
+      message: 'review',
+      uncertaintyScope: {
+        from: 0,
+        through: 1,
+        operations: [{ callId: 'call-1', name: 'effect' }],
+        unlisted: 0,
+      },
+    }
+    expect(missionProjectionDefinition.stateSchema.parse({
+      ...base,
+      current: snapshot({ revision: 2, authorization: valid }),
+    })).toMatchObject({ current: { authorization: valid } })
+
+    const invalidStates = [
+      snapshot({ revision: 2, authorization: {
+        ...valid,
+        uncertaintyScope: { ...valid.uncertaintyScope, through: 2 },
+      } }),
+      snapshot({ revision: 2, authorization: {
+        ...valid,
+        uncertaintyScope: {
+          ...valid.uncertaintyScope,
+          through: 2,
+          operations: [
+            { callId: 'same', name: 'effect' },
+            { callId: 'same', name: 'effect' },
+          ],
+        },
+      } }),
+      snapshot({ revision: 2, authorization: {
+        code: 'needs-human',
+        message: 'review',
+        uncertaintyScope: valid.uncertaintyScope,
+      } }),
+    ]
+    for (const current of invalidStates) {
+      expect(() => missionProjectionDefinition.stateSchema.parse({ ...base, current })).toThrow()
+    }
+  })
+})
+
 describe('strict durable decoding', () => {
   const malformed: unknown[] = [
     { ...change(snapshot()), mission: { ...snapshot(), goal: null } },
@@ -129,6 +177,266 @@ describe('strict durable decoding', () => {
     expect(foldMission([]).mission).toBeUndefined()
   })
 
+  it('validates authorization and resume watermarks in event order', () => {
+    const first = snapshot()
+    const started: SessionEvent = {
+      type: 'mission/change', seq: SessionSeq(1), time: 1, data: change(first),
+    } as SessionEvent
+    const unknown = (callId: string, seq: number): SessionEvent => ({
+      type: 'tool/result',
+      seq: SessionSeq(seq),
+      time: seq,
+      data: {
+        turn: seq,
+        step: 1,
+        message: createToolResultMessage({
+          callId: ToolCallId(callId), content: [{ type: 'text', text: 'unknown' }], isError: true,
+        }),
+        error: { name: 'ToolOutcomeUnknownError', code: TOOL_OUTCOME_UNKNOWN },
+      },
+    } as SessionEvent)
+    const authorization = {
+      code: 'uncertain-operations',
+      message: 'Interrupted tool calls whose outcome is unknown: 1 recorded (external_effect [call-one]).',
+      uncertaintyScope: {
+        from: 0, through: 1, operations: [{ name: 'external_effect', callId: 'call-one' }], unlisted: 0,
+      },
+    }
+    const authorized: SessionEvent = {
+      type: 'mission/change', seq: SessionSeq(3), time: 3,
+      data: change({ ...first, revision: 2, authorization }, 'authorize'),
+    } as SessionEvent
+    const resumed: SessionEvent = {
+      type: 'mission/change', seq: SessionSeq(5), time: 5,
+      data: change({ ...first, revision: 3, uncertainAcknowledged: 1 }, 'resume'),
+    } as SessionEvent
+    const folded = foldMission([
+      started,
+      unknown('call-one', 2),
+      authorized,
+      unknown('call-two', 4),
+      resumed,
+    ])
+    expect(folded.uncertaintyRecorded).toBe(2)
+    expect(folded.mission?.uncertainAcknowledged).toBe(1)
+
+    const forgedScope: SessionEvent = {
+      ...authorized,
+      data: change({
+        ...first,
+        revision: 2,
+        authorization: {
+          ...authorization,
+          uncertaintyScope: { from: 0, through: 2, operations: [], unlisted: 2 },
+        },
+      }, 'authorize'),
+    }
+    expect(() => foldMission([started, unknown('call-one', 2), forgedScope]))
+      .toThrow('mission uncertainty authorization scope does not match the event-log watermark')
+
+    const forgedResume: SessionEvent = {
+      ...resumed,
+      data: change({ ...first, revision: 3, uncertainAcknowledged: 2 }, 'resume'),
+    }
+    expect(() => foldMission([started, unknown('call-one', 2), authorized, forgedResume]))
+      .toThrow('mission resume acknowledgement exceeds or differs from its presented scope')
+  })
+
+  it('rejects malformed or inconsistent persisted authorization scopes', () => {
+    const first = snapshot()
+    const scope = { from: 0, through: 1, operations: [{ callId: 'call-1', name: 'effect' }], unlisted: 0 }
+    const rawAuthorizationChange = (authorization: unknown): unknown => ({
+      kind: 'mission/change',
+      version: 1,
+      operation: 'authorize',
+      mission: { ...first, revision: 2, authorization },
+    })
+    const invalid: unknown[] = [
+      { ...scope, operations: null },
+      { ...scope, operations: Array.from({ length: 23 }, (_, index) => ({ callId: `c-${index}`, name: 'effect' })), through: 23 },
+      { ...scope, operations: [null] },
+      { ...scope, operations: [{ callId: 'same', name: 'effect' }, { callId: 'same', name: 'effect' }], through: 2 },
+      { ...scope, through: 2 },
+      { ...scope, from: 2 },
+      { ...scope, unlisted: -1 },
+    ]
+    for (const uncertaintyScope of invalid) {
+      expect(() => decodeMissionChange(rawAuthorizationChange({
+        code: 'uncertain-operations', message: 'review', uncertaintyScope,
+      }))).toThrow()
+    }
+    expect(() => decodeMissionChange(rawAuthorizationChange({
+      code: 'needs-human', message: 'review', uncertaintyScope: scope,
+    }))).toThrow('requires uncertain-operations code')
+    expect(() => decodeMissionChange(rawAuthorizationChange({
+      code: 'uncertain-operations', message: 'review', uncertaintyScope: null,
+    }))).toThrow('uncertaintyScope must be an object')
+  })
+
+  it('rejects authorization transitions that attempt to forge or alter a scope', () => {
+    const first = snapshot()
+    const started = applyMissionChange(emptyMissionFoldState(), change(first))
+    expect(() => applyMissionChange(emptyMissionFoldState(), change({
+      ...first,
+      authorization: { code: 'needs-human', message: 'unexpected at start' },
+    }))).toThrow('mission start cannot contain prior authorization or uncertainty acknowledgement')
+    expect(() => applyMissionChange(emptyMissionFoldState(), change({
+      ...first,
+      uncertainAcknowledged: 0,
+    }))).toThrow('mission start cannot contain prior authorization or uncertainty acknowledgement')
+    const stateWithOneDoubt = { ...started, uncertaintyRecorded: 1 }
+    expect(() => applyMissionChange(started, change({
+      ...first, revision: 2, uncertainAcknowledged: 1,
+    }, 'authorize'))).toThrow('mission authorization cannot advance uncertainty acknowledgement')
+    expect(() => applyMissionChange(started, change({ ...first, revision: 2 }, 'authorize')))
+      .toThrow('mission authorize must record an authorization')
+
+    const generic = applyMissionChange(started, change({
+      ...first,
+      revision: 2,
+      authorization: { code: 'needs-human', message: 'review' },
+    }, 'authorize'))
+    expect(() => applyMissionChange(generic, change({
+      ...first, revision: 3,
+    }, 'checkpoint'))).toThrow('mission mutation cannot alter a pending authorization')
+    expect(() => applyMissionChange(stateWithOneDoubt, change({
+      ...first,
+      revision: 2,
+      authorization: {
+        code: 'needs-human', message: 'review',
+        uncertaintyScope: { from: 0, through: 1, operations: [], unlisted: 1 },
+      },
+    }, 'authorize'))).toThrow('only uncertain-operations authorization may carry an uncertainty scope')
+    expect(() => applyMissionChange(stateWithOneDoubt, change({
+      ...first,
+      revision: 2,
+      authorization: {
+        code: 'uncertain-operations', message: 'review',
+        uncertaintyScope: { from: 1, through: 1, operations: [], unlisted: 0 },
+      },
+    }, 'authorize'))).toThrow('mission uncertainty authorization scope does not match the event-log watermark')
+    const impossibleScopeState = {
+      ...stateWithOneDoubt,
+      mission: {
+        ...first,
+        revision: 2,
+        authorization: {
+          code: 'uncertain-operations',
+          message: 'review',
+          uncertaintyScope: { from: 0, through: 2, operations: [], unlisted: 2 },
+        },
+      },
+    }
+    expect(() => applyMissionChange(impossibleScopeState, change({
+      ...first,
+      revision: 3,
+      uncertainAcknowledged: 1,
+    }, 'resume'))).toThrow('mission resume uncertainty scope is invalid or exceeds the durable event log')
+
+    expect(() => applyMissionChange(started, change({ ...first, revision: 2 }, 'resume')))
+      .toThrow('mission resume requires a pending authorization')
+    const pending = applyMissionChange(started, change({
+      ...first,
+      revision: 2,
+      authorization: { code: 'needs-human', message: 'review' },
+    }, 'authorize'))
+    expect(() => applyMissionChange(pending, change({
+      ...first,
+      revision: 3,
+      authorization: { code: 'needs-human', message: 'still pending' },
+    }, 'resume'))).toThrow('mission resume must consume the pending authorization')
+  })
+
+  it('reconstructs legacy authorization scope from its durable presented count', () => {
+    const first = snapshot()
+    const started: SessionEvent = {
+      type: 'mission/change', seq: SessionSeq(1), time: 1, data: change(first),
+    } as SessionEvent
+    const unknown: SessionEvent = {
+      type: 'tool/result',
+      seq: SessionSeq(2),
+      time: 2,
+      data: {
+        turn: 1,
+        step: 1,
+        message: createToolResultMessage({
+          callId: ToolCallId('legacy-call'), content: [{ type: 'text', text: 'unknown' }], isError: true,
+        }),
+        error: { name: 'ToolOutcomeUnknownError', code: TOOL_OUTCOME_UNKNOWN },
+      },
+    } as SessionEvent
+    const authorized: SessionEvent = {
+      type: 'mission/change', seq: SessionSeq(3), time: 3,
+      data: change({
+        ...first,
+        revision: 2,
+        authorization: {
+          code: 'uncertain-operations',
+          message: 'Interrupted tool calls whose outcome is unknown: 1 recorded. Verify the external state first.',
+        },
+      }, 'authorize'),
+    } as SessionEvent
+    const resumed: SessionEvent = {
+      type: 'mission/change', seq: SessionSeq(4), time: 4,
+      data: change({ ...first, revision: 3, uncertainAcknowledged: 1 }, 'resume'),
+    } as SessionEvent
+    const legacyFold = foldMission([started, unknown, authorized, resumed])
+    expect(legacyFold.mission?.uncertainAcknowledged).toBe(1)
+    expect(Object.isFrozen(legacyFold.mission?.authorization)).toBe(true)
+    expect(Object.isFrozen(legacyFold.mission?.authorization?.uncertaintyScope)).toBe(true)
+
+    const laterUnknown: SessionEvent = {
+      type: 'tool/result',
+      seq: SessionSeq(4),
+      time: 4,
+      data: {
+        turn: 2,
+        step: 1,
+        message: createToolResultMessage({
+          callId: ToolCallId('legacy-later-call'), content: [{ type: 'text', text: 'unknown' }], isError: true,
+        }),
+        error: { name: 'ToolOutcomeUnknownError', code: TOOL_OUTCOME_UNKNOWN },
+      },
+    } as SessionEvent
+    const resumeAfterLater: SessionEvent = {
+      type: 'mission/change', seq: SessionSeq(5), time: 5,
+      data: change({ ...first, revision: 3, uncertainAcknowledged: 1 }, 'resume'),
+    } as SessionEvent
+    const legacyWithLaterResult = foldMission([started, unknown, authorized, laterUnknown, resumeAfterLater])
+    expect(legacyWithLaterResult.uncertaintyRecorded).toBe(2)
+    expect(legacyWithLaterResult.mission?.uncertainAcknowledged).toBe(1)
+    expect(legacyWithLaterResult.mission?.authorization).toBeUndefined()
+
+    const unrecognizedLegacyAuthorization: SessionEvent = {
+      type: 'mission/change', seq: SessionSeq(3), time: 3,
+      data: change({
+        ...first,
+        revision: 2,
+        authorization: { code: 'uncertain-operations', message: 'Unknown interruption; inspect manually.' },
+      }, 'authorize'),
+    } as SessionEvent
+    const unacknowledgedResume: SessionEvent = {
+      type: 'mission/change', seq: SessionSeq(4), time: 4,
+      data: change({ ...first, revision: 3 }, 'resume'),
+    } as SessionEvent
+    const unrecognizedFold = foldMission([started, unknown, unrecognizedLegacyAuthorization, unacknowledgedResume])
+    expect(unrecognizedFold.mission?.uncertainAcknowledged).toBeUndefined()
+    expect(unacknowledgedUncertainty([], 1, unrecognizedFold.mission?.uncertainAcknowledged).count).toBe(1)
+
+    const zeroLegacyAuthorization: SessionEvent = {
+      type: 'mission/change', seq: SessionSeq(3), time: 3,
+      data: change({
+        ...first,
+        revision: 2,
+        authorization: {
+          code: 'uncertain-operations',
+          message: 'Interrupted tool calls whose outcome is unknown: 0 recorded.',
+        },
+      }, 'authorize'),
+    } as SessionEvent
+    expect(foldMission([started, zeroLegacyAuthorization]).mission?.authorization?.uncertaintyScope).toBeUndefined()
+  })
+
   it('refuses a committed change that cannot follow the accumulated state', () => {
     const first = snapshot()
     const started = applyMissionChange(emptyMissionFoldState(), change(first))
@@ -145,24 +453,38 @@ describe('strict durable decoding', () => {
       .toThrow('mission checkpoint requires a current mission')
   })
 
-  it('refuses a mutation that narrows a recorded uncertainty review', () => {
+  it('allows only resume to acknowledge, and only through its presented watermark', () => {
     const first = snapshot()
     const started = applyMissionChange(emptyMissionFoldState(), change(first))
-    const reviewed = applyMissionChange(started, change({ ...first, revision: 2, uncertainAcknowledged: 3 }, 'resume'))
+    const withThreeRecorded = { ...started, uncertaintyRecorded: 3 }
+    const authorization = {
+      code: 'uncertain-operations',
+      message: 'Interrupted tool calls whose outcome is unknown: 3 recorded',
+      uncertaintyScope: { from: 0, through: 3, operations: [], unlisted: 3 },
+    }
+    const held = applyMissionChange(withThreeRecorded, change({
+      ...first, revision: 2, authorization,
+    }, 'authorize'))
+    const reviewed = applyMissionChange(held, change({
+      ...first, revision: 3, uncertainAcknowledged: 3,
+    }, 'resume'))
     expect(reviewed.mission?.uncertainAcknowledged).toBe(3)
-    // A later review covering less than an earlier one would return cleared doubts
-    // to the backlog without anybody noticing.
+    expect(() => applyMissionChange(held, change({
+      ...first, revision: 3, uncertainAcknowledged: 1,
+    }, 'checkpoint'))).toThrow('only mission resume may advance uncertainty acknowledgement')
+
+    // A later mutation cannot narrow or erase a monotonic watermark.
     expect(() => applyMissionChange(reviewed,
-      change({ ...first, revision: 3, uncertainAcknowledged: 2 }, 'checkpoint')))
+      change({ ...first, revision: 4, uncertainAcknowledged: 2 }, 'checkpoint')))
       .toThrow('mission uncertainty acknowledgement cannot shrink')
-    // Losing the field reads as "nothing was ever reviewed" - the same silent
-    // reversal, refused for the same reason.
-    expect(() => applyMissionChange(reviewed, change({ ...first, revision: 3 }, 'checkpoint')))
+    expect(() => applyMissionChange(reviewed, change({ ...first, revision: 4 }, 'checkpoint')))
       .toThrow('mission uncertainty acknowledgement cannot shrink')
-    // Widening the review is the only direction the mark can move, and a mission
-    // that never had one keeps none.
-    expect(applyMissionChange(reviewed, change({ ...first, revision: 3, uncertainAcknowledged: 5 }, 'resume')))
-      .toMatchObject({ mission: { uncertainAcknowledged: 5 } })
+
+    // Even resume cannot acknowledge beyond the exact scope that was presented.
+    expect(() => applyMissionChange(held, change({
+      ...first, revision: 3, uncertainAcknowledged: 4,
+    }, 'resume'))).toThrow('mission resume acknowledgement exceeds or differs from its presented scope')
+    // Ordinary mission progress preserves the existing authorization/watermark.
     expect(applyMissionChange(started, change({ ...first, revision: 2 }, 'checkpoint')))
       .toMatchObject({ mission: { revision: 2 } })
     expect(decodeMissionChange(change({ ...first, uncertainAcknowledged: 2 })).mission.uncertainAcknowledged).toBe(2)
@@ -264,36 +586,65 @@ describe('bounded hold diagnostics', () => {
    * to clear — work stuck behind a doubt nobody was told how to resolve.
    */
   it('renders an unknown-outcome diagnostic the durable record accepts', async () => {
-    const { uncertainMessage } = await import('../src/supervisor.ts')
-    const message = uncertainMessage(
-      Array.from({ length: 40 }, () => ({ name: 'a_very_long_tool_name_that_would_not_fit', callId: 'id' })),
-      7,
-    )
+    const { presentUncertaintyScope } = await import('../src/uncertainty.ts')
+    const presented = presentUncertaintyScope(0, 47, {
+      operations: Array.from({ length: 40 }, (_, index) => ({
+        name: 'a_very_long_tool_name_that_would_not_fit', callId: `id-${index}`,
+      })),
+      unlisted: 7,
+      count: 47,
+    })
+    const { message } = presented
     expect(message.length).toBeLessThanOrEqual(MAX_DIAGNOSTIC_LENGTH)
     // The count is never trimmed: it is what a human acts on.
     expect(message).toContain('47 recorded')
     expect(message).toContain('Verify the external state')
-    // A single name still fits, and no name means the count stands alone.
-    expect(uncertainMessage([{ name: 'bash', callId: 'c' }], 0)).toContain('(bash)')
-    expect(uncertainMessage([], 3)).toContain('3 recorded')
+    // Scope identities are exactly the operations printed; all other doubts
+    // remain in the durable aggregate and are counted as unlisted.
+    expect(presented.scope.operations.length + presented.scope.unlisted).toBe(47)
+    const one = presentUncertaintyScope(0, 1, {
+      operations: [{ name: 'bash', callId: 'c' }], unlisted: 0, count: 1,
+    })
+    expect(one.message).toContain('bash [c]')
+    expect(one.scope.operations).toEqual([{ name: 'bash', callId: 'c' }])
+    expect(presentUncertaintyScope(0, 3, { operations: [], unlisted: 3, count: 3 }).message)
+      .toContain('3 recorded')
   })
 
   /**
    * The same bound, at the other edge: a name that does not fit is left out
    * rather than cut in half, because a half-written tool name is not evidence.
    */
-  it('leaves out the names that do not fit instead of truncating one', async () => {
-    const { uncertainMessage } = await import('../src/supervisor.ts')
+  it('leaves out identities that do not fit instead of truncating one', async () => {
+    const { presentUncertaintyScope } = await import('../src/uncertainty.ts')
     const tooWide = 'y'.repeat(MAX_DIAGNOSTIC_LENGTH)
-    const partial = uncertainMessage([{ name: 'read_file' }, { name: 'write_file' }, { name: tooWide }], 0)
-    expect(partial).toContain('(read_file, write_file, …)')
-    expect(partial).not.toContain('y'.repeat(20))
-    // With no name short enough to fit, the count stands alone - and the count is
-    // what a human acts on.
-    const none = uncertainMessage([{ name: tooWide }], 2)
-    expect(none).not.toContain('y'.repeat(20))
-    expect(none).toContain('3 recorded')
-    for (const message of [partial, none]) {
+    const partial = presentUncertaintyScope(0, 3, {
+      operations: [
+        { name: 'read_file', callId: 'read-1' },
+        { name: 'write_file', callId: 'write-1' },
+        { name: tooWide, callId: 'wide-id' },
+      ],
+      unlisted: 0,
+      count: 3,
+    })
+    expect(partial.message).toContain('read_file [read-1]')
+    expect(partial.message).toContain('write_file [write-1]')
+    expect(partial.message).not.toContain('y'.repeat(20))
+    expect(partial.scope.operations).toHaveLength(2)
+    expect(partial.scope.unlisted).toBe(1)
+
+    // With no identity short enough to fit, the count stands alone.
+    const none = presentUncertaintyScope(0, 3, {
+      operations: [{ name: tooWide, callId: 'wide-id' }], unlisted: 2, count: 3,
+    })
+    expect(() => presentUncertaintyScope(1, 0, { operations: [], unlisted: 0, count: 0 })).toThrow()
+    expect(() => presentUncertaintyScope(0, 1, { operations: [], unlisted: 0, count: 0 })).toThrow()
+    expect(() => presentUncertaintyScope(0, 1, { operations: [], unlisted: 1, count: 1 })).not.toThrow()
+    expect(none.message).not.toContain('y'.repeat(20))
+    expect(none.message).toContain('3 recorded')
+    expect(none.scope.operations).toHaveLength(0)
+    expect(none.scope.unlisted).toBe(3)
+    for (const message of [partial.message, none.message]) {
       expect(message.length).toBeLessThanOrEqual(MAX_DIAGNOSTIC_LENGTH)
     }
   })

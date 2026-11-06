@@ -42,7 +42,7 @@ import {
 } from './runtime.ts'
 import type { MissionErrorCode } from './runtime.ts'
 import { RecoveryLedger, assertPolicyCode } from './ledger.ts'
-import { recordedUncertainty } from './uncertainty.ts'
+import { presentUncertaintyScope, recordedUncertainty, unacknowledgedUncertainty } from './uncertainty.ts'
 import type { RecoveryRecord } from './ledger.ts'
 import { MissionSupervisor } from './supervisor.ts'
 import type { MissionSweepReport } from './supervisor.ts'
@@ -57,6 +57,7 @@ import type {
   MissionRef,
   MissionSnapshot,
   MissionView,
+  MissionUncertaintyScope,
   StartMissionRequest,
   UncertainOperation,
 } from './types.ts'
@@ -78,7 +79,7 @@ export {
 export { applyMissionChange, decodeMissionChange, foldMission, missionChangeRef } from './fold.ts'
 export { missionContinuityDomain, recoveryRecordSchema } from './ledger.ts'
 export { renderMissionRecoveryNotice } from './prompt.ts'
-export { recordedUncertainty, unacknowledgedUncertainty } from './uncertainty.ts'
+export { presentUncertaintyScope, recordedUncertainty, unacknowledgedUncertainty } from './uncertainty.ts'
 export type {
   RecoveryNoticeInput,
   RecoveryNoticeOperation,
@@ -171,10 +172,29 @@ const checkpointSchema = zod.object({
 }).strict()
 
 /** Pending-authorization schema of a stored mission record. */
-const authorizationSchema = zod.object({
+const authorizationScopeOperationSchema = zod.object({
+  callId: zod.string().min(1),
+  name: zod.string().min(1),
+}).strict()
+
+const authorizationScopeSchema: ZodType<MissionUncertaintyScope> = zod.object({
+  from: zod.number().int().nonnegative().safe(),
+  through: zod.number().int().nonnegative().safe(),
+  operations: zod.array(authorizationScopeOperationSchema).max(22),
+  unlisted: zod.number().int().nonnegative().safe(),
+}).strict().refine(scope => scope.through >= scope.from
+  && scope.operations.length + scope.unlisted === scope.through - scope.from,
+'uncertainty authorization scope must account for its complete reviewed interval')
+  .refine(scope => new Set(scope.operations.map(operation => operation.callId)).size === scope.operations.length,
+    'uncertainty authorization scope cannot repeat a call identity')
+
+const authorizationSchema: ZodType<MissionAuthorization> = zod.object({
   code: zod.string().regex(POLICY_CODE_PATTERN),
   message: zod.string().min(1).max(MAX_DIAGNOSTIC_LENGTH),
-}).strict()
+  uncertaintyScope: authorizationScopeSchema.optional(),
+}).strict().refine(authorization => authorization.uncertaintyScope === undefined
+  || authorization.code === UNCERTAIN_OPERATIONS,
+'only an uncertain-operation authorization may carry an uncertainty scope')
 
 /** One durable mission record, as stored by `mission/change`. */
 const missionSnapshotSchema: ZodType<MissionSnapshot> = zod.object({
@@ -222,6 +242,7 @@ function foldState(state: MissionProjectionState): MissionFoldState {
     lastRef: undefined,
     seenMissionIds: new Set(state.seenMissionIds),
     cleared: state.current === null && state.seenMissionIds.length > 0,
+    uncertaintyRecorded: recordedUncertainty(state.uncertainOperations, state.uncertainOverflow ?? 0),
   }
 }
 
@@ -373,10 +394,10 @@ function applyMissionProjection(state: MissionProjectionState, event: SessionEve
 export const missionProjectionDefinition = {
   key: 'mission',
   stateSchema: missionProjectionStateSchema,
-  // 2: the tracker counts the open calls its window cannot name, so a displaced
-  // call is no longer remembered as a doubt its result never earned. A cached
-  // state from version 1 is discarded and re-folded from the session log.
-  stateVersion: 2,
+  // 3: authorization snapshots now carry a frozen uncertainty interval and the
+  // projection/fold validate it against event order. Re-fold older checkpoints
+  // so no cached authorization state can omit the new scope metadata.
+  stateVersion: 3,
   init: (): MissionProjectionState => ({
     current: null,
     seenMissionIds: [],
@@ -760,8 +781,39 @@ export class MissionService extends Service {
    */
   async authorize(agent: Agent, ref: MissionRef, authorization: MissionAuthorization): Promise<MissionView> {
     const current = this.expect(agent, ref)
+    const resolved = resolveAuthorization(authorization)
+    let durableAuthorization: MissionAuthorization = resolved
+    if (resolved.code === UNCERTAIN_OPERATIONS) {
+      // Capture the event ordinal and the exact identities rendered in the
+      // authorization before the first await. JavaScript's synchronous session
+      // append is the serialization point: a TOOL_OUTCOME_UNKNOWN result is
+      // either before this `authorize` event (and inside the scope) or after it
+      // (and outside it), never ambiguously on either side.
+      const state = this.state(agent)
+      const through = recordedUncertainty(state.uncertainOperations, state.uncertainOverflow ?? 0)
+      const from = current.uncertainAcknowledged ?? 0
+      if (from > through) {
+        throw new MissionError(
+          'mission uncertainty watermark exceeds the durable outcomes; a fresh recovery record is required',
+          'MISSION_INVALID_AUTHORIZATION',
+        )
+      }
+      const backlog = unacknowledgedUncertainty(
+        state.uncertainOperations,
+        state.uncertainOverflow ?? 0,
+        from,
+      )
+      const presented = presentUncertaintyScope(from, through, backlog)
+      // A caller cannot widen or narrow the reviewed interval with a supplied
+      // message/scope; both are derived from the same immutable snapshot.
+      durableAuthorization = Object.freeze({
+        code: UNCERTAIN_OPERATIONS,
+        message: presented.message,
+        uncertaintyScope: presented.scope,
+      })
+    }
     const view = this.commit(agent, 'authorize', this.advance(current, {
-      authorization: resolveAuthorization(authorization),
+      authorization: durableAuthorization,
     }))
     await this.recordRow(agent, view)
     return view
@@ -791,10 +843,28 @@ export class MissionService extends Service {
     // lives with the durable record — never with a discovery row — because the
     // row is a hint that a later mutation or an index rebuild rewrites, while
     // this is the fact of what was reviewed.
+    // Consume only the immutable scope attached to the authorization that was
+    // presented. The current projection may contain newer unknown outcomes; they
+    // are deliberately excluded and the next sweep will create a fresh hold.
+    const priorAcknowledged = current.uncertainAcknowledged ?? 0
+    const scope = current.authorization.code === UNCERTAIN_OPERATIONS
+      ? current.authorization.uncertaintyScope
+      : undefined
     const state = this.state(agent)
     const recorded = recordedUncertainty(state.uncertainOperations, state.uncertainOverflow ?? 0)
-    const reviewing = current.authorization.code === UNCERTAIN_OPERATIONS && recorded > 0
-    const acknowledged = Math.max(current.uncertainAcknowledged ?? 0, reviewing ? recorded : 0)
+    if (scope !== undefined
+      && (scope.from !== priorAcknowledged || scope.through > recorded
+        || scope.operations.length + scope.unlisted !== scope.through - scope.from)) {
+      throw new MissionError(
+        'mission uncertainty authorization scope no longer matches its durable event history',
+        'MISSION_INVALID_AUTHORIZATION',
+      )
+    }
+    const reviewing = scope !== undefined && scope.through > scope.from
+    const reviewedCount = reviewing && scope !== undefined ? scope.through - scope.from : 0
+    const acknowledged = reviewing && scope !== undefined
+      ? Math.max(priorAcknowledged, scope.through)
+      : priorAcknowledged
     const next: MissionSnapshot = {
       id: current.id,
       revision: current.revision + 1,
@@ -819,7 +889,7 @@ export class MissionService extends Service {
         ...this.row(agent, view, this.rowState(view)),
         lastError: {
           code: UNCERTAIN_ACKNOWLEDGED,
-          message: `A human reviewed ${recorded} recorded tool call(s) with unknown outcomes and resumed this mission.`,
+          message: `A human reviewed ${reviewedCount} recorded tool call(s) with unknown outcomes and resumed this mission.`,
         },
       })
       return view

@@ -16,7 +16,7 @@ import type { GoalChanged, GoalView } from '@deepseek-ai/dsh-goal'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import { MAX_DIAGNOSTIC_LENGTH, UNCERTAIN_OPERATIONS } from './runtime.ts'
-import { unacknowledgedUncertainty } from './uncertainty.ts'
+import { presentUncertaintyScope, recordedUncertainty, unacknowledgedUncertainty } from './uncertainty.ts'
 import { renderMissionRecoveryNotice } from './prompt.ts'
 import type { RecoveryRecord } from './ledger.ts'
 import type { MissionService, ResolvedConfig } from './service.ts'
@@ -62,39 +62,6 @@ function reasonOf(value: unknown): string {
  */
 function ownedElsewhere(error: unknown): boolean {
   return error instanceof Error && error.name === 'SessionAlreadyOwnedError'
-}
-
-/**
- * Render the diagnostic that records an unknown-outcome hold.
- *
- * The message must fit the durable record's diagnostic limit: an over-long one
- * is rejected by `authorize()`, and the sweep would then hold the mission under
- * a generic failure code instead of the `uncertain-operations` code a human has
- * to clear — leaving the work stuck behind a doubt nobody is told how to
- * resolve. The number of recorded doubts always fits; the names are what get
- * trimmed, because the count is what a human acts on.
- * @param uncertain - unknown-outcome calls the tracker could list.
- * @param overflow - unknown-outcome calls it had to count instead.
- * @returns a diagnostic of at most {@link MAX_DIAGNOSTIC_LENGTH} characters.
- */
-export function uncertainMessage(
-  uncertain: readonly { readonly name: string }[],
-  overflow: number,
-): string {
-  const total = uncertain.length + overflow
-  const head = `Interrupted tool calls whose outcome is unknown: ${total} recorded`
-  const trailer = '. Verify the external state before this mission continues.'
-  const names = [...new Set(uncertain.map(operation => operation.name))]
-  const shown: string[] = []
-  for (const name of names) {
-    const candidate = [...shown, name].join(', ')
-    const rendered = candidate === names.join(', ') ? ` (${candidate})` : ` (${candidate}, …)`
-    if ((head + rendered + trailer).length > MAX_DIAGNOSTIC_LENGTH) break
-    shown.push(name)
-  }
-  const detail = shown.length === 0 ? '' : ` (${shown.join(', ')}${shown.length === names.length ? '' : ', …'})`
-  // Every part above is budgeted, so the result fits; the slice is the belt.
-  return `${head}${detail}${trailer}`.slice(0, MAX_DIAGNOSTIC_LENGTH)
 }
 
 /** Bound one diagnostic to what a durable row accepts. */
@@ -320,12 +287,18 @@ export class MissionSupervisor {
       mission.uncertainAcknowledged,
     )
     if (backlog.count > 0) {
-      const message = uncertainMessage(backlog.operations, backlog.unlisted)
+      const through = recordedUncertainty(
+        this.service.uncertainOperations(agent),
+        this.service.uncertainOverflow(agent),
+      )
+      const presented = presentUncertaintyScope(mission.uncertainAcknowledged ?? 0, through, backlog)
       const authorized = await this.service.authorize(
         agent,
         { id: mission.id, revision: mission.revision },
-        { code: UNCERTAIN_OPERATIONS, message },
+        { code: UNCERTAIN_OPERATIONS, message: presented.message },
       )
+      const message = authorized.authorization?.message
+      if (message === undefined) throw new Error('mission uncertainty authorization was not persisted')
       await this.hold({ ...row, revision: authorized.revision, attempts: authorized.attempts },
         UNCERTAIN_OPERATIONS, message)
       return 'held'
