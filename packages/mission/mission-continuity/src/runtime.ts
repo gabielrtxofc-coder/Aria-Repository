@@ -25,8 +25,11 @@ export const POLICY_CODE_PATTERN = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/
 export const UNCERTAIN_OPERATIONS = 'uncertain-operations'
 
 /**
- * Durable index code recording that a human reviewed those calls and cleared
- * the hold, so the next sweep may claim the mission instead of re-raising it.
+ * Durable index code reporting that a human reviewed those calls and cleared the
+ * hold. It is a diagnostic for whoever reads the index, never a permission: the
+ * sweep decides from the acknowledgement the mission record carries, because a
+ * row is a hint that later mutations and an index rebuild rewrite — and a doubt
+ * recorded after the review must not inherit it.
  */
 export const UNCERTAIN_ACKNOWLEDGED = 'uncertain-operations-acknowledged'
 

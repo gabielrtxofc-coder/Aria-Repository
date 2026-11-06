@@ -188,6 +188,7 @@ function decodeSnapshot(value: unknown): MissionSnapshot {
     'interruption',
     'checkpoint',
     'authorization',
+    'uncertainAcknowledged',
     'createdAt',
     'updatedAt',
   ], 'mission change mission')
@@ -206,6 +207,7 @@ function decodeSnapshot(value: unknown): MissionSnapshot {
   const interruption = value['interruption']
   const checkpoint = value['checkpoint']
   const authorization = value['authorization']
+  const acknowledged = value['uncertainAcknowledged']
   return {
     id: MissionId(boundedText(value['id'], 'mission.id', 200)),
     revision: positiveInteger(value['revision'], 'mission.revision'),
@@ -217,6 +219,13 @@ function decodeSnapshot(value: unknown): MissionSnapshot {
     ...interruption === undefined ? {} : { interruption: decodeInterruption(interruption) },
     ...checkpoint === undefined ? {} : { checkpoint: decodeCheckpoint(checkpoint) },
     ...authorization === undefined ? {} : { authorization: decodeAuthorization(authorization) },
+    // The acknowledgement is a count of reviewed doubts, so it must be a whole
+    // number; an absent one means nobody has reviewed anything yet, which is a
+    // different fact from "zero doubts were reviewed" only in the record, never
+    // in what recovery refuses to do.
+    ...acknowledged === undefined
+      ? {}
+      : { uncertainAcknowledged: nonNegativeInteger(value['uncertainAcknowledged'], 'mission.uncertainAcknowledged') },
     createdAt,
     updatedAt,
   }
@@ -328,6 +337,15 @@ export function applyMissionChange(state: MissionFoldState, change: MissionChang
   const after = next.checkpoint?.seq
   if (before !== undefined && after !== undefined && after < before) {
     throw new Error('mission checkpoint cannot move backward')
+  }
+  // A human review of unknown outcomes is a fact about the past: no later
+  // mutation may drop it or narrow what it covered, or a doubt somebody cleared
+  // would silently return to the backlog — and a record that lost the review
+  // would read as though nothing had been acknowledged at all.
+  const clearedBefore = current.uncertainAcknowledged ?? 0
+  const clearedAfter = next.uncertainAcknowledged ?? 0
+  if (clearedAfter < clearedBefore) {
+    throw new Error('mission uncertainty acknowledgement cannot shrink')
   }
   return {
     mission: next,

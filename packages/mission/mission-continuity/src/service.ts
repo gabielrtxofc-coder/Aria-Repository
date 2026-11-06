@@ -42,6 +42,7 @@ import {
 } from './runtime.ts'
 import type { MissionErrorCode } from './runtime.ts'
 import { RecoveryLedger, assertPolicyCode } from './ledger.ts'
+import { recordedUncertainty } from './uncertainty.ts'
 import type { RecoveryRecord } from './ledger.ts'
 import { MissionSupervisor } from './supervisor.ts'
 import type { MissionSweepReport } from './supervisor.ts'
@@ -77,6 +78,7 @@ export {
 export { applyMissionChange, decodeMissionChange, foldMission, missionChangeRef } from './fold.ts'
 export { missionContinuityDomain, recoveryRecordSchema } from './ledger.ts'
 export { renderMissionRecoveryNotice } from './prompt.ts'
+export { recordedUncertainty, unacknowledgedUncertainty } from './uncertainty.ts'
 export type {
   RecoveryNoticeInput,
   RecoveryNoticeOperation,
@@ -124,8 +126,27 @@ export interface ResolvedConfig {
   maxRebuildSessions: number
 }
 
-/** Most pending or uncertain calls retained by the projection. */
-const MAX_TRACKED_CALLS = 16
+/**
+ * Most calls one of the projection's two windows tracks for one session.
+ *
+ * The tracker must hold one whole step's fan-out, not one arbitrary slice of
+ * it: the agent loop dispatches up to its `maxParallelToolCalls` tool calls at
+ * once (10 by default, and a deployment may configure more), so a bound below
+ * that drops calls that are still legitimately in flight. A dropped pending call
+ * makes its later `TOOL_OUTCOME_UNKNOWN` result invisible, and recovery then
+ * resumes a mission past a call whose external effect nobody confirmed. The
+ * bound is 2x the shipped fan-out plus a margin.
+ *
+ * Overflowing the bound may cost a name, never the fact. A call the open-call
+ * window had to drop is counted ({@link
+ * MissionProjectionState.pendingOverflow}) and the count settles when a result
+ * for it arrives: a call whose result became durable is settled, whoever was
+ * tracking it, so it must not be remembered as a doubt. Only a result that
+ * actually reports an unknown outcome becomes one, and a doubt the doubt window
+ * cannot hold is counted ({@link MissionProjectionState.uncertainOverflow})
+ * instead of being dropped.
+ */
+const MAX_TRACKED_CALLS = 22
 
 /** Mission id schema shared by the projection and its client view. */
 const missionIdSchema = zod.string().min(1).max(200).transform(MissionId)
@@ -169,6 +190,7 @@ const missionSnapshotSchema: ZodType<MissionSnapshot> = zod.object({
   interruption: interruptionSchema.optional(),
   checkpoint: checkpointSchema.optional(),
   authorization: authorizationSchema.optional(),
+  uncertainAcknowledged: zod.number().int().nonnegative().optional(),
   createdAt: zod.number().int().nonnegative(),
   updatedAt: zod.number().int().nonnegative(),
 }).strict()
@@ -186,6 +208,8 @@ const missionProjectionStateSchema: ZodType<MissionProjectionState> = zod.object
   failure: zod.string().min(1).nullable(),
   pendingCalls: zod.array(trackedCallSchema),
   uncertainOperations: zod.array(trackedCallSchema),
+  uncertainOverflow: zod.number().int().positive().optional(),
+  pendingOverflow: zod.number().int().positive().optional(),
 }).strict()
 
 /** Client view: the current mission record, or null before start and after clear. */
@@ -209,12 +233,83 @@ function projectionState(state: MissionFoldState, tracked: MissionProjectionStat
     failure: tracked.failure,
     pendingCalls: tracked.pendingCalls,
     uncertainOperations: tracked.uncertainOperations,
+    ...tracked.uncertainOverflow === undefined ? {} : { uncertainOverflow: tracked.uncertainOverflow },
+    ...tracked.pendingOverflow === undefined ? {} : { pendingOverflow: tracked.pendingOverflow },
   }
 }
 
-/** Append one tracked call, keeping the collection bounded and unique. */
-function trackCall(calls: readonly UncertainOperation[], call: UncertainOperation): readonly UncertainOperation[] {
-  return [...calls.filter(entry => entry.callId !== call.callId), call].slice(-MAX_TRACKED_CALLS)
+/** The bounded collection plus the calls it had to drop. */
+interface TrackResult {
+  /** Calls retained, newest last. */
+  readonly kept: readonly UncertainOperation[]
+  /** Calls displaced by the bound, oldest first. */
+  readonly displaced: readonly UncertainOperation[]
+}
+
+/**
+ * Append one tracked call, keeping the collection bounded and unique.
+ * @param calls - calls tracked before this event.
+ * @param call - call to append.
+ * @returns the bounded collection and whatever the bound displaced.
+ */
+function trackCall(calls: readonly UncertainOperation[], call: UncertainOperation): TrackResult {
+  const appended = [...calls.filter(entry => entry.callId !== call.callId), call]
+  return { kept: appended.slice(-MAX_TRACKED_CALLS), displaced: appended.slice(0, -MAX_TRACKED_CALLS) }
+}
+
+/**
+ * Fold one unknown-outcome call into the state. The bounded list is
+ * `MAX_TRACKED_CALLS` long, so an unknown outcome that has to displace a
+ * recorded one is counted instead of forgotten: recovery treats a non-zero
+ * overflow exactly like a listed call.
+ * @param state - state before the result.
+ * @param call - call whose committed result reported an unknown outcome.
+ * @returns the state carrying the doubt.
+ */
+function trackUncertain(state: MissionProjectionState, ...calls: readonly UncertainOperation[]): MissionProjectionState {
+  let retained: readonly UncertainOperation[] = state.uncertainOperations
+  let overflow = state.uncertainOverflow ?? 0
+  for (const call of calls) {
+    const tracked = trackCall(retained, call)
+    retained = tracked.kept
+    overflow += tracked.displaced.length
+  }
+  return {
+    ...state,
+    uncertainOperations: retained,
+    ...overflow === 0 ? {} : { uncertainOverflow: overflow },
+  }
+}
+
+/**
+ * Set the counted open calls, dropping the count entirely once it reaches zero
+ * so a settled session reports a clean state instead of a stale `0`.
+ * @param state - state to carry every other field of.
+ * @param open - how many recorded calls are still open and unnamed.
+ * @returns the state carrying that count.
+ */
+function countPending(state: MissionProjectionState, open: number): MissionProjectionState {
+  const { pendingOverflow: _dismissed, ...rest } = state
+  return open > 0 ? { ...rest, pendingOverflow: open } : rest
+}
+
+/**
+ * Settle one open call the bounded window could no longer name, doubting it only
+ * when the arriving result reports an unknown outcome.
+ *
+ * Both halves come from one fact: a result arrived for an identity the open-call
+ * window had already dropped. The call stopped being open — its outcome is now
+ * recorded — so it leaves the counted-open total, and it joins the doubt count
+ * only if what was recorded is that nobody knows.
+ * @param state - state before the result.
+ * @param open - how many counted calls were still open, at least one.
+ * @param unknown - whether this result says the outcome is unknown.
+ * @returns the state with that counted call settled.
+ */
+function settleCountedCall(state: MissionProjectionState, open: number, unknown: boolean): MissionProjectionState {
+  const settled = countPending(state, open - 1)
+  if (!unknown) return settled
+  return { ...settled, uncertainOverflow: (state.uncertainOverflow ?? 0) + 1 }
 }
 
 /**
@@ -239,19 +334,35 @@ function applyMissionProjection(state: MissionProjectionState, event: SessionEve
     case 'tool/call': {
       const call = { callId: event.data.callId, name: event.data.name }
       if (state.uncertainOperations.some(entry => entry.callId === call.callId)) return state
-      return { ...state, pendingCalls: trackCall(state.pendingCalls, call) }
+      const tracked = trackCall(state.pendingCalls, call)
+      if (tracked.displaced.length === 0) return { ...state, pendingCalls: tracked.kept }
+      // A displaced call is still open, and an open call is not a doubt yet: its
+      // result may still arrive and say the outcome is known. Forget it and
+      // recovery would resume past it, so the count keeps it visible until the
+      // log settles it — one way or the other.
+      return {
+        ...state,
+        pendingCalls: tracked.kept,
+        pendingOverflow: (state.pendingOverflow ?? 0) + tracked.displaced.length,
+      }
     }
     case 'tool/result': {
       const callId = event.data.message.source.callId
+      const unknown = event.data.error?.code === TOOL_OUTCOME_UNKNOWN
       const pending = state.pendingCalls.find(entry => entry.callId === callId)
-      if (pending === undefined) return state
-      const remaining = state.pendingCalls.filter(entry => entry.callId !== callId)
-      if (event.data.error?.code !== TOOL_OUTCOME_UNKNOWN) return { ...state, pendingCalls: remaining }
-      return {
-        ...state,
-        pendingCalls: remaining,
-        uncertainOperations: trackCall(state.uncertainOperations, pending),
+      if (pending === undefined) {
+        // Not in the window: either an identity already recorded as a doubt, or
+        // one of the open calls the window had to drop. Only the second case
+        // accounts for anything, and it settles the count rather than doubting
+        // the call: a result that became durable answers the question the
+        // displacement was about, whatever the tracker remembered.
+        if (state.uncertainOperations.some(entry => entry.callId === callId)) return state
+        const open = state.pendingOverflow ?? 0
+        return open > 0 ? settleCountedCall(state, open, unknown) : state
       }
+      const remaining = state.pendingCalls.filter(entry => entry.callId !== callId)
+      if (!unknown) return { ...state, pendingCalls: remaining }
+      return trackUncertain({ ...state, pendingCalls: remaining }, pending)
     }
     default:
       return state
@@ -262,7 +373,10 @@ function applyMissionProjection(state: MissionProjectionState, event: SessionEve
 export const missionProjectionDefinition = {
   key: 'mission',
   stateSchema: missionProjectionStateSchema,
-  stateVersion: 1,
+  // 2: the tracker counts the open calls its window cannot name, so a displaced
+  // call is no longer remembered as a doubt its result never earned. A cached
+  // state from version 1 is discarded and re-folded from the session log.
+  stateVersion: 2,
   init: (): MissionProjectionState => ({
     current: null,
     seenMissionIds: [],
@@ -463,12 +577,31 @@ export class MissionService extends Service {
 
   /**
    * Recorded calls whose committed outcome is unknown, oldest first.
+   *
+   * This is what the durable log says about these calls, not what recovery still
+   * has to stop for: a doubt a human already reviewed stays visible here — the
+   * model still needs to know the outcome of a call nobody confirmed — and is
+   * excluded only from the backlog `unacknowledgedUncertainty` reports.
    * @param agent - owning live agent.
    * @returns bounded call identities for recovery diagnostics.
    */
   uncertainOperations(agent: Agent): readonly UncertainOperation[] {
     this.assertLive(agent)
     return this.state(agent).uncertainOperations
+  }
+
+  /**
+   * Unknown-outcome calls the bounded tracker could not list. Non-zero means the
+   * doubt is at least as serious as a listed call, so callers that gate on
+   * {@link uncertainOperations} must gate on this value too — and gate on both
+   * through {@link unacknowledgedUncertainty}, which is also what subtracts the
+   * reviews the mission record already carries.
+   * @param agent - owning live agent.
+   * @returns how many unknown-outcome calls were counted but not listed.
+   */
+  uncertainOverflow(agent: Agent): number {
+    this.assertLive(agent)
+    return this.state(agent).uncertainOverflow ?? 0
   }
 
   /**
@@ -650,6 +783,18 @@ export class MissionService extends Service {
         'MISSION_INVALID_AUTHORIZATION',
       )
     }
+    // Clearing an uncertainty hold is the human decision that lets recovery
+    // touch this mission again, and the decision has a scope: the person reviewed
+    // the doubts this mission had been shown, no more. The count of those doubts
+    // is what the record keeps, so a call whose outcome becomes unknown later is
+    // outstanding on its own and the next sweep stops for it again. The count
+    // lives with the durable record — never with a discovery row — because the
+    // row is a hint that a later mutation or an index rebuild rewrites, while
+    // this is the fact of what was reviewed.
+    const state = this.state(agent)
+    const recorded = recordedUncertainty(state.uncertainOperations, state.uncertainOverflow ?? 0)
+    const reviewing = current.authorization.code === UNCERTAIN_OPERATIONS && recorded > 0
+    const acknowledged = Math.max(current.uncertainAcknowledged ?? 0, reviewing ? recorded : 0)
     const next: MissionSnapshot = {
       id: current.id,
       revision: current.revision + 1,
@@ -660,23 +805,21 @@ export class MissionService extends Service {
       attempts: current.attempts,
       ...current.interruption === undefined ? {} : { interruption: current.interruption },
       ...current.checkpoint === undefined ? {} : { checkpoint: current.checkpoint },
+      ...acknowledged === 0 ? {} : { uncertainAcknowledged: acknowledged },
       createdAt: current.createdAt,
       updatedAt: Math.max(Date.now(), current.updatedAt),
     }
     const view = this.commit(agent, 'resume', next)
-    // Clearing an uncertainty hold is the human decision that lets recovery
-    // touch this mission again. The record itself cannot express "a person read
-    // this", so the durable index carries it: the next sweep sees the
-    // acknowledgement instead of raising the same hold forever. The marker is a
-    // hint like every other row field — if the index is rebuilt, the hold comes
-    // back and a human is asked again, which is the safe direction.
-    if (current.authorization.code === UNCERTAIN_OPERATIONS
-      && this.state(agent).uncertainOperations.length > 0) {
+    if (reviewing) {
+      // The row keeps a diagnostic of the same decision, for whoever reads the
+      // index. It reports the review and never authorizes anything: a sweep
+      // decides from the durable record, so no doubt recorded after this moment
+      // can inherit it.
       await this.ledger.put({
         ...this.row(agent, view, this.rowState(view)),
         lastError: {
           code: UNCERTAIN_ACKNOWLEDGED,
-          message: 'A human reviewed the interrupted calls with unknown outcomes and resumed this mission.',
+          message: `A human reviewed ${recorded} recorded tool call(s) with unknown outcomes and resumed this mission.`,
         },
       })
       return view

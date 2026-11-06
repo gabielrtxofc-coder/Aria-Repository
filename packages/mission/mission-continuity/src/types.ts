@@ -60,6 +60,21 @@ export interface MissionCheckpoint {
 }
 
 /**
+ * The unknown outcomes one mission still owes a human review for: the bounded
+ * names the projection can quote, the count of doubts it could not name, and the
+ * total a diagnostic reports. Acknowledged doubts are excluded — that is what
+ * makes this the quantity recovery gates on.
+ */
+export interface UncertainBacklog {
+  /** Doubts the bounded window can name, oldest first, none of them acknowledged. */
+  readonly operations: readonly UncertainOperation[]
+  /** Outstanding doubts the bounded window could not name. */
+  readonly unlisted: number
+  /** How many doubts are outstanding, named or not; zero means recovery may run. */
+  readonly count: number
+}
+
+/**
  * Pending human authorization. While present, autonomous recovery must not run:
  * the mission waits for the decision that the approval seam owns.
  */
@@ -91,6 +106,17 @@ export interface MissionSnapshot extends MissionRef {
   readonly checkpoint?: MissionCheckpoint | undefined
   /** Pending human authorization; present exactly while recovery is held. */
   readonly authorization?: MissionAuthorization | undefined
+  /**
+   * How many unknown-outcome calls a human review has cleared, counted in the
+   * order the session log recorded them.
+   *
+   * The count is the scope of the decision: a review covered the doubts that
+   * already existed, so any doubt recorded afterwards is outstanding again and
+   * recovery must stop for a person a second time. It lives with the record —
+   * not with a discovery row — because a row is a hint that a rebuild may
+   * rewrite, while this is the durable fact of what was reviewed.
+   */
+  readonly uncertainAcknowledged?: number | undefined
   /** Epoch milliseconds of the start mutation. */
   readonly createdAt: number
   /** Epoch milliseconds of the latest mutation. */
@@ -180,6 +206,23 @@ export interface MissionProjectionState {
   readonly pendingCalls: readonly UncertainOperation[]
   /** Calls whose committed result says the outcome is unknown, oldest first. */
   readonly uncertainOperations: readonly UncertainOperation[]
+  /**
+   * Unknown-outcome calls this bounded state had to leave out, because a single
+   * step recorded more of them than the tracker retains. Present only when
+   * non-zero: recovery never resumes past an unknown outcome, so an overflow is
+   * a doubt a human must clear — it must never be silently forgettable.
+   */
+  readonly uncertainOverflow?: number | undefined
+  /**
+   * Recorded calls still waiting for a result that this bounded state had to
+   * leave unnamed, because one step kept more of them open than the window
+   * holds. Present only when non-zero. An open call is not yet a doubt — its
+   * result may still say the outcome is known, and the fold settles one of these
+   * counted calls whenever a result arrives for an identity it can no longer
+   * name. A doubt is recorded only when a result actually reports an unknown
+   * outcome, so no successful call is ever turned into one.
+   */
+  readonly pendingOverflow?: number | undefined
 }
 
 declare module '@deepseek-ai/dsh-session-projection/types' {
