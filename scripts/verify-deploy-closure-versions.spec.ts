@@ -10,6 +10,7 @@
  * every unrelated transitive patch.
  */
 
+import { spawnSync } from 'node:child_process'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -19,6 +20,7 @@ import {
   describeDeployDrift,
   lockedVersions,
   readDeployedPackages,
+  readPinnedOverrides,
   verifyDeployClosureVersions,
   type DeployLock,
   type DeployedPackage,
@@ -175,5 +177,114 @@ describe('verifyDeployClosureVersions', () => {
   it('fails an empty staging instead of reporting success', async () => {
     const { root, staging } = await fixture([])
     await expect(verifyDeployClosureVersions(root, staging)).rejects.toThrow('no package manifests found')
+  })
+})
+
+describe('verify-deploy-closure CLI invocation', () => {
+  const script = join(import.meta.dirname, 'verify-deploy-closure-versions.ts')
+  // The real closure is verified against the repository lockfile, so the
+  // fixtures use the identity this verifier was built to police: the pinned
+  // `@swc/helpers` version the lock reviews (0.5.23) and the drifted one (0.5.24).
+  const reviewed = '0.5.23'
+  const drifted = '0.5.24'
+
+  async function stagingWith(version: string): Promise<string> {
+    const root = await mkdtemp(join(tmpdir(), 'dsh-deploy-cli-'))
+    roots.push(root)
+    const packageDirectory = join(root, 'staging', 'node_modules', '@swc', 'helpers')
+    await mkdir(packageDirectory, { recursive: true })
+    await writeFile(join(packageDirectory, 'package.json'), JSON.stringify({ name: '@swc/helpers', version }))
+    return join(root, 'staging')
+  }
+
+  function runCli(args: readonly string[], staging: string): { status: number | null; stdout: string; stderr: string } {
+    const result = spawnSync(process.execPath, ['--import', 'tsx', script, ...args], {
+      cwd: join(import.meta.dirname, '..'),
+      encoding: 'utf8',
+      env: { ...process.env, DSH_TELEMETRY_DISABLED: '1' },
+    })
+    return { status: result.status, stdout: result.stdout ?? '', stderr: result.stderr ?? '' }
+  }
+
+  it('runs the call the builder really makes and passes a reviewed closure', async () => {
+    const staging = await stagingWith(reviewed)
+    // Exactly what pnpm delivers for `deployClosureRunArgs`: the flag, no separator.
+    const result = runCli(['--staging', staging], staging)
+    expect(result.stderr).toBe('')
+    expect(result.stdout).toContain('1 package(s) match pnpm-lock.yaml')
+    expect(result.status).toBe(0)
+  }, 60_000)
+
+  it('fails the build when the deployed closure drifts from the pin', async () => {
+    const staging = await stagingWith(drifted)
+    const result = runCli(['--staging', staging], staging)
+    expect(result.status).toBe(1)
+    expect(result.stderr).toContain(`@swc/helpers@${drifted} is not in pnpm-lock.yaml`)
+    expect(result.stderr).toContain(`reviewed versions: ${reviewed}`)
+  }, 60_000)
+
+  it('still works when a caller leaves a bare separator in argv', async () => {
+    // Defence in depth: an older builder, a manual run, or a future pnpm that
+    // stops stripping `--` must not turn the check into a crash.
+    const staging = await stagingWith(drifted)
+    const result = runCli(['--', '--staging', staging], staging)
+    expect(result.status).toBe(1)
+    expect(result.stderr).toContain('is not in pnpm-lock.yaml')
+  }, 60_000)
+})
+
+describe('readPinnedOverrides', () => {
+  async function workspace(files: Record<string, string>): Promise<string> {
+    const root = await mkdtemp(join(tmpdir(), 'dsh-deploy-pins-'))
+    roots.push(root)
+    for (const [name, body] of Object.entries(files)) await writeFile(join(root, name), body)
+    return root
+  }
+
+  it('enforces the child of a scoped override', () => {
+    // `extract-zip>yauzl: 3.4.0` is a real pin in this workspace; a hoisted
+    // closure holds one yauzl, so the child name is what can be checked.
+    const pinned = readPinnedOverrides(process.cwd())
+    expect(pinned.get('yauzl')).toBe('3.4.0')
+    expect(pinned.get('@swc/helpers')).toBe('0.5.23')
+  })
+
+  it('reads a scoped override from a fixture workspace', async () => {
+    const root = await workspace({ 'pnpm-workspace.yaml': 'overrides:\n  "parent>child": 1.2.3\n' })
+    expect([...readPinnedOverrides(root)]).toEqual([['child', '1.2.3']])
+  })
+
+  it('refuses two different pins for one package instead of guessing', async () => {
+    const root = await workspace({
+      'pnpm-workspace.yaml': 'overrides:\n  "a>shared": 1.0.0\n  "b>shared": 2.0.0\n',
+    })
+    expect(() => readPinnedOverrides(root)).toThrow('conflicting pins for shared')
+  })
+
+  it('fails closed when the workspace file cannot be parsed', async () => {
+    const root = await workspace({ 'pnpm-workspace.yaml': 'overrides: [unclosed\n' })
+    expect(() => readPinnedOverrides(root)).toThrow('cannot parse')
+  })
+
+  it('ignores link: pins, which address a directory rather than a version', async () => {
+    const root = await workspace({
+      'pnpm-workspace.yaml': 'overrides:\n  "@scope/local": "link:vendor/local"\n  pinned: 4.5.6\n',
+    })
+    expect([...readPinnedOverrides(root)]).toEqual([['pinned', '4.5.6']])
+  })
+
+  it('treats absent workspace files as having no overrides', async () => {
+    const root = await workspace({})
+    expect([...readPinnedOverrides(root)]).toEqual([])
+  })
+})
+
+describe('scoped overrides in the drift check', () => {
+  it('blocks a child that ignored its scoped pin', () => {
+    const overrides = new Map([['yauzl', '3.4.0']])
+    const drift = deployClosureDrift([deployed('yauzl', '3.3.0')], new Map(), new Map(), overrides)
+    expect(describeDeployDrift(drift)).toEqual([
+      'verify-deploy-closure: yauzl@3.3.0 is not in pnpm-lock.yaml — reviewed versions: 3.4.0',
+    ])
   })
 })

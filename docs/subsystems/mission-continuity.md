@@ -9,6 +9,14 @@ The durable mission record, the reconciliation index that discovers it, and the 
 A mission is committed to the owning session log as `mission/change`, carrying the complete post-mutation snapshot or a `clear` tombstone:
 
 ```ts
+import type { GoalRef } from '@deepseek-ai/dsh-goal/types'
+import type {
+  MissionAuthorization,
+  MissionCheckpoint,
+  MissionId,
+  MissionInterruption,
+} from '@deepseek-ai/dsh-mission-continuity'
+
 /** Complete post-mutation mission state. */
 interface MissionSnapshot {
   readonly id: MissionId
@@ -35,6 +43,10 @@ interface MissionSnapshot {
 The storage domain holds one row per recoverable mission. It is a hint, never a second authority:
 
 ```ts
+import type { GoalId } from '@deepseek-ai/dsh-goal/types'
+import type { MissionId } from '@deepseek-ai/dsh-mission-continuity'
+import type { SessionId } from '@deepseek-ai/dsh-session'
+
 /** One durable discovery row. */
 interface RecoveryRecord {
   readonly sessionId: SessionId
@@ -73,10 +85,18 @@ A resumed mission consumes one attempt, flushes the record, queues the `<mission
 Recovery does not own provider or model selection. Before resuming a session it dispatches the `mission/agent-setup` waterfall with the persisted session id and uses the returned plan for the agent factory:
 
 ```ts
-ctx.on('mission/agent-setup', async (request, next) => ({
-  ...await next(request),
-  agentOptions: { provider, model },
-}))
+import type { Context } from '@deepseek-ai/cordis'
+import type { MissionAgentSetupPlan } from '@deepseek-ai/dsh-mission-continuity'
+
+declare const provider: string
+declare const model: string
+
+export function apply(ctx: Context): void {
+  ctx.on('mission/agent-setup', async (request, next): Promise<MissionAgentSetupPlan> => ({
+    ...await next(request),
+    agentOptions: { provider, model },
+  }))
+}
 ```
 
 An empty plan resumes the log without provider/model options and fails loud on the first request, which holds the row instead of guessing a route. The shipped `default-agent-plan` plugin answers from `ctx.agentDefaultModel`; a profile may answer differently in a later patch layer, and a model that changes between attempts is a reroute, not a lost mission.

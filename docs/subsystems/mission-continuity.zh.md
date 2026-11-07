@@ -9,6 +9,14 @@
 任务以 `mission/change` 提交到所属会话日志，携带修改后的完整快照或一个 `clear` 墓碑：
 
 ```ts
+import type { GoalRef } from '@deepseek-ai/dsh-goal/types'
+import type {
+  MissionAuthorization,
+  MissionCheckpoint,
+  MissionId,
+  MissionInterruption,
+} from '@deepseek-ai/dsh-mission-continuity'
+
 /** Complete post-mutation mission state. */
 interface MissionSnapshot {
   readonly id: MissionId
@@ -35,6 +43,10 @@ interface MissionSnapshot {
 存储域为每个可恢复任务保存一行。它只是线索，绝不是第二权威：
 
 ```ts
+import type { GoalId } from '@deepseek-ai/dsh-goal/types'
+import type { MissionId } from '@deepseek-ai/dsh-mission-continuity'
+import type { SessionId } from '@deepseek-ai/dsh-session'
+
 /** One durable discovery row. */
 interface RecoveryRecord {
   readonly sessionId: SessionId
@@ -73,10 +85,18 @@ interface RecoveryRecord {
 恢复不拥有 provider 与模型的选择权。在续接会话之前，它用持久会话 id 派发 `mission/agent-setup` 瀑布，并把返回的方案交给 Agent 工厂：
 
 ```ts
-ctx.on('mission/agent-setup', async (request, next) => ({
-  ...await next(request),
-  agentOptions: { provider, model },
-}))
+import type { Context } from '@deepseek-ai/cordis'
+import type { MissionAgentSetupPlan } from '@deepseek-ai/dsh-mission-continuity'
+
+declare const provider: string
+declare const model: string
+
+export function apply(ctx: Context): void {
+  ctx.on('mission/agent-setup', async (request, next): Promise<MissionAgentSetupPlan> => ({
+    ...await next(request),
+    agentOptions: { provider, model },
+  }))
+}
 ```
 
 空方案会在没有 provider/模型选项的情况下续接日志，并在第一次请求时明确失败，于是该行被挂起而不是猜测路由。随包提供的 `default-agent-plan` 插件用 `ctx.agentDefaultModel` 作答；profile 可以在后续补丁层给出不同答案，而两次尝试之间更换模型属于改道，不是任务丢失。

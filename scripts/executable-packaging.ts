@@ -4,6 +4,40 @@ import { cp, mkdir, readFile } from 'node:fs/promises'
 import { dirname, extname, join, resolve, sep } from 'node:path'
 
 /**
+ * Describe the mismatch between the workspace's pinned pnpm and the one that
+ * will run the deploy, or `null` when the majors agree.
+ *
+ * `pnpm deploy --legacy` re-resolves open ranges with the running resolver, so
+ * a different major can produce a closure the lock never reviewed — that is how
+ * `@swc/helpers ^0.5.12` reached packaging as 0.5.24 while the lock held 0.5.23.
+ * @param expectedVersion - `packageManager` version from the workspace manifest.
+ * @param actualVersion - version reported by the pnpm that will run the deploy.
+ * @returns the mismatch message, or `null` when the majors match.
+ */
+export function pnpmVersionMismatch(expectedVersion: string, actualVersion: string): string | null {
+  const expectedMajor = expectedVersion.split('.')[0]
+  if (actualVersion !== '' && actualVersion.startsWith(`${expectedMajor}.`)) return null
+  return `pnpm ${actualVersion === '' ? '(unknown version)' : actualVersion} does not match workspace packageManager `
+    + `pnpm@${expectedVersion} (expected major ${expectedMajor}); run with pnpm@${expectedVersion} `
+    + `(e.g. npx pnpm@${expectedVersion} --filter dsh-python-runtime-closure deploy)`
+}
+
+/**
+ * Argument vector for the `pnpm run` invocation that checks a deployed closure.
+ *
+ * Deliberately without a `--` separator: pnpm 11.28.5 forwards that separator
+ * to the script verbatim, where `parseArgs` reads a bare `--` as end-of-options
+ * and rejects `--staging` as a positional argument — that aborted the Python
+ * runtime build on Linux and Windows before the closure was ever compared. The
+ * verifier's CLI also drops a stray separator, so both forms work.
+ * @param staging - deploy directory to verify.
+ * @returns pnpm arguments, with the staging path last.
+ */
+export function deployClosureRunArgs(staging: string): string[] {
+  return ['run', 'verify-deploy-closure', '--staging', staging]
+}
+
+/**
  * Resolve pnpm without invoking a command shell, including Windows shims.
  * @param args - pnpm arguments.
  * @returns the executable and its argument vector.

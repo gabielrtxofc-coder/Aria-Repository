@@ -111,8 +111,7 @@ The Harness can **safely hold long missions**, but three proven defects in the m
 3. **C1** — `MAX_TRACKED_CALLS` is 22 (2× the shipped 10-way fan-out + margin), and a call displaced from the pending window is recorded as an unknown-outcome doubt instead of being forgotten. The retained list stays bounded; an unlistable doubt is counted in `MissionProjectionState.uncertainOverflow`, exposed as `ctx.missions.uncertainOverflow(agent)`, and treated exactly like a listed call by both the sweep gate and the recovery notice.
 4. **C2** — the hold diagnostic renders the total first and trims names from the end to fit `MAX_DIAGNOSTIC_LENGTH`, so the authorization is always recordable and the count a human acts on always survives.
 
-**Proof of the fix** (mutation check, all run): reverting the source turns 9 named tests red —
-`reaches a second interrupted mission while the first stays claimed`, `keeps one recovery per interrupted mission across repeated sweeps`, `survives one corrupted discovery row and still recovers the mission from its log`, `holds the mission instead of resuming past calls it could not track`, `bounds the tracked calls…`, `counts unknown outcomes it cannot forget…`, `omits optional sections and bounds long lists`, `names a doubt the bounded tracker could not list`, `renders an unknown-outcome diagnostic the durable record accepts` — and restoring the fix turns all 119 green. The end-to-end `uncertain-operations.e2e.ts` lane was re-run unchanged and passes.
+**Proof of the fix** (mutation check, all run): reverting the source turns 9 named tests red — `reaches a second interrupted mission while the first stays claimed`, `keeps one recovery per interrupted mission across repeated sweeps`, `survives one corrupted discovery row and still recovers the mission from its log`, `holds the mission instead of resuming past calls it could not track`, `bounds the tracked calls…`, `counts unknown outcomes it cannot forget…`, `omits optional sections and bounds long lists`, `names a doubt the bounded tracker could not list`, `renders an unknown-outcome diagnostic the durable record accepts` — and restoring the fix turns all 119 green. The end-to-end `uncertain-operations.e2e.ts` lane was re-run unchanged and passes.
 
 ---
 
@@ -211,44 +210,15 @@ See the pull request opened from `arena/e9e19faa-aria-repository` against `main`
 
 ## 15. Mission 09 follow-up: the review covers what it saw, and a displaced call is only open
 
-A re-audit of this layer found one security defect and one false-doubt defect left after §4–5. Both were
-reproduced against this PR's unmodified head (`3082f280`) before either was fixed.
+A re-audit of this layer found one security defect and one false-doubt defect left after §4–5. Both were reproduced against this PR's unmodified head (`3082f280`) before either was fixed.
 
-**B-1 (critical, security).** Human acknowledgement of unknown-outcome calls was a single marker on the
-disposable discovery row (`lastError.code = 'uncertain-acknowledged'`), consulted by `supervisor.claim()` as a
-whole-gate bypass. It named and counted nothing, so a doubt recorded *after* the review never re-blocked the
-mission, and a rewrite or rebuild of the index re-granted the pardon — the record of the permission was the
-permission, in a component where the log is the authority.
+**B-1 (critical, security).** Human acknowledgement of unknown-outcome calls was a single marker on the disposable discovery row (`lastError.code = 'uncertain-acknowledged'`), consulted by `supervisor.claim()` as a whole-gate bypass. It named and counted nothing, so a doubt recorded *after* the review never re-blocked the mission, and a rewrite or rebuild of the index re-granted the pardon — the record of the permission was the permission, in a component where the log is the authority.
 
-**L-1 (medium, false doubts).** `tool/call` recorded a doubt for every call the 22-slot window displaced — while
-the call was still merely open — and `tool/result` returned the state untouched for an identity outside the
-window, so that doubt could never be retracted. Any step holding more than 22 open calls manufactured permanent
-doubts for calls that then succeeded.
+**L-1 (medium, false doubts).** `tool/call` recorded a doubt for every call the 22-slot window displaced — while the call was still merely open — and `tool/result` returned the state untouched for an identity outside the window, so that doubt could never be retracted. Any step holding more than 22 open calls manufactured permanent doubts for calls that then succeeded.
 
-**Fix.** Acknowledgement is now a monotonic watermark on the mission record itself:
-`MissionSnapshot.uncertainAcknowledged` (folded from the session log, `stateVersion: 2`), written as
-`max(previous, recorded)` by `resume()`, and rejected by `fold.ts` if any later mutation narrows it or drops it.
-The gate asks one shared pure function, `unacknowledgedUncertainty(operations, unlisted, acknowledged)`
-(`src/uncertainty.ts`), what is still outstanding; a watermark outside `[0, recorded]` clears nothing. The row
-marker is kept as a diagnostic only. Displaced calls are counted, not listed: `MissionProjectionState.pendingOverflow`
-increments on displacement and is settled by a result for an unlisted identity, and a doubt is recorded only when
-that committed result itself reports `TOOL_OUTCOME_UNKNOWN`. No second pending-call registry was added.
+**Fix.** Acknowledgement is now a monotonic watermark on the mission record itself: `MissionSnapshot.uncertainAcknowledged` (folded from the session log, `stateVersion: 2`), written as `max(previous, recorded)` by `resume()`, and rejected by `fold.ts` if any later mutation narrows it or drops it. The gate asks one shared pure function, `unacknowledgedUncertainty(operations, unlisted, acknowledged)` (`src/uncertainty.ts`), what is still outstanding; a watermark outside `[0, recorded]` clears nothing. The row marker is kept as a diagnostic only. Displaced calls are counted, not listed: `MissionProjectionState.pendingOverflow` increments on displacement and is settled by a result for an unlisted identity, and a doubt is recorded only when that committed result itself reports `TOOL_OUTCOME_UNKNOWN`. No second pending-call registry was added.
 
-**Verified.** mission-continuity unit 119 → 136 passing; 100% statement, branch and function coverage on every
-source file in the package (which also closes the `uncertainMessage` name-budget gap §11 left at 96.8% branch);
-e2e/SIGKILL lane 7/7; the eight regression tests added for H1/H2/C1/C2 re-run unchanged and green, including the
-`uncertain-operations` end-to-end case that asserts the post-acknowledgement notice still names the call.
-Reverting `src/` to `3082f280` turns 13 of the 17 new tests red; the four green ones are deliberate controls (a
-10-call step, "never retract a recorded unknown outcome", "an unmatched result settles nothing", and the C2
-diagnostic budget). Package `README.md`/`.zh.md`, `docs/subsystems/mission-continuity.md`/`.zh.md` (with their
-i18n sidecars re-recorded) and a decision record at
-`.agents/notes/implemented/bug-fix/2026-11-05-mission-uncertainty-acknowledgement.md`/`.zh.md` document the new
-semantics, replacing the earlier claim that "an index rebuild forgets the acknowledgement and asks again".
+**Verified.** mission-continuity unit 119 → 136 passing; 100% statement, branch and function coverage on every source file in the package (which also closes the `uncertainMessage` name-budget gap §11 left at 96.8% branch); e2e/SIGKILL lane 7/7; the eight regression tests added for H1/H2/C1/C2 re-run unchanged and green, including the `uncertain-operations` end-to-end case that asserts the post-acknowledgement notice still names the call. Reverting `src/` to `3082f280` turns 13 of the 17 new tests red; the four green ones are deliberate controls (a 10-call step, "never retract a recorded unknown outcome", "an unmatched result settles nothing", and the C2 diagnostic budget). Package `README.md`/`.zh.md`, `docs/subsystems/mission-continuity.md`/`.zh.md` (with their i18n sidecars re-recorded) and a decision record at `.agents/notes/implemented/bug-fix/2026-11-05-mission-uncertainty-acknowledgement.md`/`.zh.md` document the new semantics, replacing the earlier claim that "an index rebuild forgets the acknowledgement and asks again".
 
-**Not proven here.** `pnpm lint` still aborts in this sandbox (oxlint panics even on untouched files), the
-whole-workspace typecheck still OOMs, and the api-catalog freshness spec needs a 480-second project build, so the
-generated `cordis-catalog` region in `docs/subsystems/mission-continuity.*` keeps the drift §12 already recorded
-(`uncertainOverflow` still has no catalog entry). A watermark counts the most recent N doubts rather than a chosen
-set, so a partial review of a huge fan-out asks again about the oldest; a duplicate `tool/call` reusing a
-displaced identity can cost one extra review. All simulated lanes: real-provider integration is not asserted.
+**Not proven here.** `pnpm lint` still aborts in this sandbox (oxlint panics even on untouched files), the whole-workspace typecheck still OOMs, and the api-catalog freshness spec needs a 480-second project build, so the generated `cordis-catalog` region in `docs/subsystems/mission-continuity.*` keeps the drift §12 already recorded (`uncertainOverflow` still has no catalog entry). A watermark counts the most recent N doubts rather than a chosen set, so a partial review of a huge fan-out asks again about the oldest; a duplicate `tool/call` reusing a displaced identity can cost one extra review. All simulated lanes: real-provider integration is not asserted.
 

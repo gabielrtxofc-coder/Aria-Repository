@@ -2,7 +2,7 @@ import { lstat, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, it, onTestFinished } from 'vitest'
-import { restoreLegacyHoists } from './executable-packaging.ts'
+import { deployClosureRunArgs, pnpmVersionMismatch, restoreLegacyHoists } from './executable-packaging.ts'
 import { materializeStagedLinks } from './build-exe-for-python-sdk-staging.ts'
 
 async function fixture() {
@@ -44,4 +44,34 @@ it('materializes a package junction without deleting its source and drops linked
   expect(await readFile(join(test.modules, 'peer/index.js'), 'utf8')).toBe('intact')
   expect(await readFile(join(test.source, 'peer/index.js'), 'utf8')).toBe('intact')
   await expect(lstat(join(test.modules, '.bin'))).rejects.toThrow('ENOENT')
+})
+
+it('accepts the pnpm major the workspace pins', () => {
+  expect(pnpmVersionMismatch('11.28.5', '11.28.5')).toBeNull()
+  expect(pnpmVersionMismatch('11.28.5', '11.30.0')).toBeNull()
+})
+
+it('rejects the major mismatch that re-resolves the deploy differently', () => {
+  // v12 re-resolved `@swc/helpers ^0.5.12` to a version the lock never reviewed.
+  const mismatch = pnpmVersionMismatch('11.28.5', '12.0.1')
+  expect(mismatch).toContain('pnpm 12.0.1 does not match workspace packageManager pnpm@11.28.5')
+  expect(mismatch).toContain('expected major 11')
+})
+
+it('rejects an unreadable pnpm version instead of assuming it matches', () => {
+  // An unknown resolver is an unverified resolver: this must not return null.
+  expect(pnpmVersionMismatch('11.28.5', '')).toContain('(unknown version)')
+})
+
+it('passes the staging flag without a separator pnpm would forward', () => {
+  // pnpm 11.28.5 keeps a literal `--` in the script's argv, where `parseArgs`
+  // reads it as end-of-options and then rejects `--staging` as a positional.
+  // That regression failed `Build single-exe` on Linux and on Windows.
+  const args = deployClosureRunArgs('/tmp/staging')
+  expect(args).toEqual(['run', 'verify-deploy-closure', '--staging', '/tmp/staging'])
+  expect(args).not.toContain('--')
+})
+
+it('keeps the staging path last so a path with spaces survives quoting', () => {
+  expect(deployClosureRunArgs('C:\\a\\runtime node').at(-1)).toBe('C:\\a\\runtime node')
 })
