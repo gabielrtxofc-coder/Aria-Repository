@@ -18,6 +18,17 @@ overrides:
   'extract-zip>yauzl': '3.4.0'
   '@deepseek-ai/cosmokit': 'link:vendor/cosmokit'
   '@deepseek-ai/schemastery': 'link:vendor/schemastery'
+  # fontkit depends on `@swc/helpers: ^0.5.12`, an open range. The workspace
+  # lockfile pins 0.5.23, but the python-runtime staging is produced by
+  # `pnpm deploy --config.node-linker=hoisted`, which resolves the range again
+  # instead of replaying the lock: once 0.5.24 was published (2026-11-04) the
+  # deployed closure carried a version no lockfile entry covers, and
+  # `runtimeNpmArchive()` correctly refused to package it
+  # ("missing SHA-512 integrity for @swc/helpers@0.5.24").
+  # Pinning here keeps the deployed closure on the reviewed archive and stops a
+  # future publish from silently changing what ships. Bump this together with
+  # the lockfile regenerate, never on its own.
+  '@swc/helpers': '0.5.23'
 
 peerDependencyRules:
   allowedVersions:

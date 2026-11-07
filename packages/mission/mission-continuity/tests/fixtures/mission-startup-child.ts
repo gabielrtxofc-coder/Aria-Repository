@@ -20,7 +20,6 @@
  * Usage: mission-startup-child.ts <crash|resume|resume-disabled> <overlay.patch.yml>
  */
 
-import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-goal'
@@ -70,6 +69,12 @@ async function waitUntil(predicate: () => boolean, label: string, timeoutMs = 30
   }
 }
 
+/** Structural shape of the persisted payload of one stored user message. */
+interface DurableUserMessagePayload {
+  readonly content?: readonly { readonly type?: string; readonly text?: string }[]
+  readonly source?: { readonly kind?: string }
+}
+
 /** One user message as the durable log records it. */
 interface DurableUserMessage {
   /** Provenance recorded on the message; `injected` for harness-authored blocks. */
@@ -93,7 +98,11 @@ async function userMessages(ctx: Context, sessionId: SessionId): Promise<Durable
     const { events } = await handle.read(0)
     return events.flatMap((event) => {
       if (event.type !== 'user/message') return []
-      const data = event.data as { content?: { type?: string; text?: string }[]; source?: { kind?: string } }
+      // `event.data` is the persisted payload of the message the composition
+      // produced, not a `UserMessage` object: the log stores the wire shape, so
+      // reading it needs a structural description rather than a cast from the
+      // in-memory type.
+      const data = event.data as Partial<DurableUserMessagePayload>
       const first = data.content?.find(block => block.type === 'text')?.text ?? ''
       return [{ source: data.source?.kind ?? 'injected', notice: first.startsWith('<mission_recovery') }]
     })

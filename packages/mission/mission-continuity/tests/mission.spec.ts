@@ -6,7 +6,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import { SessionId } from '@deepseek-ai/dsh-session'
 import {
   applyMissionChange,
   decodeMissionChange,
@@ -15,7 +14,7 @@ import {
   missionChangeRef,
 } from '../src/index.ts'
 import type { MissionChangeMeta, MissionSnapshot } from '../src/index.ts'
-import { createAgent, mountHarness, stopHarness, tempRoot, textResponse } from './harness.ts'
+import { createAgent, mountHarness, tempRoot, textResponse } from './harness.ts'
 import type { MissionHarness } from './harness.ts'
 
 const contexts: Context[] = []

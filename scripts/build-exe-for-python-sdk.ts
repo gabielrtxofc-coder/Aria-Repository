@@ -275,11 +275,48 @@ class SingleExeBuild {
     await this.runPnpm('build', args)
   }
 
+  /**
+   * Ensure the running pnpm is the one the workspace was verified with.
+   *
+   * `pnpm deploy --legacy` re-resolves open ranges differently across major
+   * versions: v12 re-resolved `@swc/helpers ^0.5.12` to 0.5.24 while the lock
+   * held 0.5.23, and the drift only surfaced later as a missing SHA-512
+   * integrity. Failing early keeps CI and local builds on the same resolver.
+   */
+  private async verifyPnpmVersion(): Promise<void> {
+    if (this.cli.dryRun) {
+      console.log('build-exe-for-python-sdk: [dry-run] verify pnpm version')
+      return
+    }
+    const { packageManager } = JSON.parse(await readFile(join(root, 'package.json'), 'utf8')) as { packageManager: string }
+    const expected = packageManager.startsWith('pnpm@') ? packageManager.slice('pnpm@'.length) : packageManager
+    const expectedMajor = expected.split('.')[0]
+    try {
+      const deployed = await new Promise<string>((resolvePromise, reject) => {
+        const child = spawn(...pnpmInvocation(['--version']), { cwd: root, stdio: ['ignore', 'pipe', 'pipe'] })
+        let out = ''
+        child.stdout?.on('data', (chunk: Buffer) => { out += chunk.toString() })
+        child.once('error', reject)
+        child.once('exit', code => code === 0 ? resolvePromise(out.trim()) : reject(new Error(`pnpm --version exited ${String(code)}`)))
+      })
+      if (!deployed.startsWith(`${expectedMajor}.`)) {
+        throw new Error(
+          `build-exe-for-python-sdk: pnpm ${deployed} does not match workspace packageManager ${packageManager} `
+          + `(expected major ${expectedMajor}); run with pnpm@${expected} (e.g. npx pnpm@${expected} --filter dsh-python-runtime-closure deploy)`,
+        )
+      }
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('does not match workspace packageManager')) throw error
+      console.warn(`build-exe-for-python-sdk: could not verify pnpm version: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+
   /** Clear and deploy the runtime closure into the node carrier. */
   async deployStaging(): Promise<void> {
     if (this.staging === root || root.startsWith(this.staging + sep)) {
       throw new Error(`build-exe-for-python-sdk: refusing to clear staging dir ${this.staging}: it contains the repo root.`)
     }
+    await this.verifyPnpmVersion()
     if (this.cli.dryRun) console.log(`build-exe-for-python-sdk: [dry-run] rm -rf ${this.staging}`)
     else await rm(this.staging, { recursive: true, force: true })
     try { await this.runPnpm('deploy', [
@@ -299,6 +336,7 @@ class SingleExeBuild {
       // Legacy deploy records production-only workspace state; restore the development installation before exec.
       await this.runPnpm('restore development dependencies', ['install', '--offline', '--frozen-lockfile', '--prod=false', '--ignore-scripts'])
     }
+    await this.verifyDeployedVersions()
     await this.restoreLegacyHoists()
     await this.materializeStagedLinks()
     if (this.cli.dryRun) {
@@ -309,6 +347,31 @@ class SingleExeBuild {
         cwd: this.staging, exclude: ['node_modules/**/assets/**'],
       })) await rm(join(this.staging, file), { force: true })
     }
+  }
+
+  /**
+   * Reject a deployed closure that ships a version the workspace lock never
+   * reviewed.
+   *
+   * `pnpm deploy --legacy` re-resolves open ranges instead of replaying the
+   * lock, so a dependency published after the lock was written lands in the
+   * shipped closure — that is how `@swc/helpers@0.5.24` reached packaging while
+   * the lock held `0.5.23`. Checking the closure that was actually deployed
+   * covers every transitive dependency, including ones added later, without a
+   * per-package override to maintain.
+   */
+  private async verifyDeployedVersions(): Promise<void> {
+    if (this.cli.dryRun) {
+      console.log('build-exe-for-python-sdk: [dry-run] verify deployed closure against pnpm-lock.yaml')
+      return
+    }
+    await this.runPnpm('deploy closure versions', [
+      'run',
+      'verify-deploy-closure',
+      '--',
+      '--staging',
+      this.staging,
+    ])
   }
 
   /**

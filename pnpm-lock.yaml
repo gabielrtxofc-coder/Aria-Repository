@@ -8,6 +8,7 @@ overrides:
   extract-zip>yauzl: 3.4.0
   '@deepseek-ai/cosmokit': link:vendor/cosmokit
   '@deepseek-ai/schemastery': link:vendor/schemastery
+  '@swc/helpers': 0.5.23
 
 patchedDependencies:
   '@earendil-works/pi-ai@1.0.2': 1cc211bc358d30cb58bd975f39c03e296f8a277c3de845514d12f9ae77ebab5f

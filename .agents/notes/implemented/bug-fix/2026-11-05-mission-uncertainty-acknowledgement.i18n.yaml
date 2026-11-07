@@ -1,0 +1,19 @@
+# Bilingual-pair consistency record for 2026-11-05-mission-uncertainty-acknowledgement.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-11-05-mission-uncertainty-acknowledgement.md
+/agent-note-an-uncertainty-review-covers-the-doubts-it-saw-and-a-displaced-call-is-only-an-open-call:
+  en: cda7db2d5d02f027
+  zh: 1e75334b67522a13
+/agent-note-an-uncertainty-review-covers-the-doubts-it-saw-and-a-displaced-call-is-only-an-open-call/problem:
+  en: 9609846ac8ed3d7e
+  zh: 8809e772b228139e
+/agent-note-an-uncertainty-review-covers-the-doubts-it-saw-and-a-displaced-call-is-only-an-open-call/decision:
+  en: 45a0101f5156a1fd
+  zh: df3212fd9bc9eab1
+/agent-note-an-uncertainty-review-covers-the-doubts-it-saw-and-a-displaced-call-is-only-an-open-call/alternatives-considered:
+  en: d9f0a604041e130d
+  zh: 8e1bd4861bae9690
+/agent-note-an-uncertainty-review-covers-the-doubts-it-saw-and-a-displaced-call-is-only-an-open-call/consequences:
+  en: 8183094f5ecce5f7
+  zh: c551d8287dc82ed2

@@ -88,6 +88,7 @@ An empty plan resumes the log without provider/model options and fails loud on t
 ## Known limits
 
 - A call with an unknown outcome is never re-executed by Aria, but a model may re-issue a non-idempotent call; missions record the uncertainty and ask for verification, and no exactly-once claim is made.
+- An unknown outcome holds the mission until a person acknowledges it. The acknowledgement is a watermark over the outcomes recorded at that moment, so a doubt recorded later holds the mission again, and it is folded into the session log with the mission so a rebuilt recovery index cannot grant a stale clearance.
 - Recovery is bounded by `maxMissionsPerSweep` and `defaultMaxRecoveryAttempts`; exhaustion is recorded as an objective blocker for a human.
 - A pending approval is durable; recovery resumes only after it is granted.
 
@@ -117,10 +118,26 @@ get(agent: Agent): MissionView | undefined
 
 /**
  * Recorded calls whose committed outcome is unknown, oldest first.
+ *
+ * This is what the durable log says about these calls, not what recovery still
+ * has to stop for: a doubt a human already reviewed stays visible here — the
+ * model still needs to know the outcome of a call nobody confirmed — and is
+ * excluded only from the backlog `unacknowledgedUncertainty` reports.
  * @param agent - owning live agent.
  * @returns bounded call identities for recovery diagnostics.
  */
 uncertainOperations(agent: Agent): readonly UncertainOperation[]
+
+/**
+ * Unknown-outcome calls the bounded tracker could not list. Non-zero means the
+ * doubt is at least as serious as a listed call, so callers that gate on
+ * {@link uncertainOperations} must gate on this value too — and gate on both
+ * through {@link unacknowledgedUncertainty}, which is also what subtracts the
+ * reviews the mission record already carries.
+ * @param agent - owning live agent.
+ * @returns how many unknown-outcome calls were counted but not listed.
+ */
+uncertainOverflow(agent: Agent): number
 
 /**
  * Current plan entries from the todo projection, in plan order.

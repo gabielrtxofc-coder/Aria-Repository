@@ -8,10 +8,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { SessionId, SessionSeq } from '@deepseek-ai/dsh-session'
-import { missionProjectionDefinition, MissionService, resolveConfig } from '../src/index.ts'
+import { missionProjectionDefinition, resolveConfig } from '../src/index.ts'
 import type { RecoveryRecord } from '../src/index.ts'
 import { createAgent, mountHarness, stopHarness, tempRoot, textResponse } from './harness.ts'
-import type { MissionHarness } from './harness.ts'
 
 const contexts: Context[] = []
 const cleanups: (() => Promise<void>)[] = []
@@ -131,10 +130,13 @@ describe('contained failures', () => {
   it('reports a rejected row removal without masking the append failure', async () => {
     const { harness, agent } = await mount()
     const append = agent.session.append.bind(agent.session)
-    vi.spyOn(agent.session, 'append').mockImplementation(((type: string, data: unknown) => {
+    // Mirrors the canonical spy signature used elsewhere in the repository
+    // (packages/acp): the rest parameter stays `never[]` so the mock keeps the
+    // method's overload shape instead of widening it.
+    vi.spyOn(agent.session, 'append').mockImplementation(((type: string, ...rest: never[]) => {
       if (type === 'mission/change') throw new Error('append refused')
-      return append(type as never, data as never)
-    }) as typeof agent.session.append)
+      return (append as (...args: never[]) => unknown)(type as never, ...rest)
+    }) as never)
     vi.spyOn(harness.ctx.missions.ledger, 'delete').mockRejectedValue(new Error('index closed'))
     await expect(harness.ctx.missions.start(agent, { objective: 'orphan row', completionCriteria: ['x'] }))
       .rejects.toThrow('append refused')
@@ -257,7 +259,7 @@ describe('goal reconciliation', () => {
 
 describe('held agent release', () => {
   it('releases only when the mission settles and contains a failing dispose', async () => {
-    const { harness, root } = await mount()
+    const { harness } = await mount()
     const other = await mountHarness({ root: await tempRoot('dsh-mission-other-').then(value => value.root), script: [], config: { sweepOnStartup: false } })
     contexts.push(other.ctx)
     const otherAgent = await createAgent(other)
@@ -320,7 +322,7 @@ describe('held agent release', () => {
   })
 
   it('stops claiming and releases held agents when disposed mid-sweep', async () => {
-    const { harness, root } = await mount()
+    const { harness } = await mount()
     const other = await mountHarness({ root: await tempRoot('dsh-mission-dispose-').then(value => value.root), script: [], config: { sweepOnStartup: false } })
     contexts.push(other.ctx)
     const otherAgent = await createAgent(other)

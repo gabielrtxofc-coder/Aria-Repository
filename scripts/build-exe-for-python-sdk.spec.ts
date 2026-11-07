@@ -137,6 +137,9 @@ describe('Python runtime executable builder CLI', () => {
     expect(deploy).toContain('--prod --config.allow-unused-patches=true')
     expect(deploy).toContain('--config.hoist-workspace-packages=false')
     expect(result.stdout.split('--config.allow-unused-patches=true')).toHaveLength(2)
+    // The deployed closure is checked against the lock after the deploy and
+    // before any packaging step sees it, so a re-resolved range cannot ship.
+    expect(result.stdout).toContain("[dry-run] verify deployed closure against pnpm-lock.yaml")
     expect(result.stdout).not.toContain(resolve(root, 'python/sdk-runtime/runtime-bootstrap.mjs'))
     expect(result.stdout).toContain('"bin":"runtime-bootstrap.mjs"')
     expect(result.stdout).toContain(`${process.execPath} C:\\tools\\pnpm.cjs exec pkg`)
