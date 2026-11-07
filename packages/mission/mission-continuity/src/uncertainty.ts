@@ -76,7 +76,12 @@ export interface PresentedUncertaintyScope {
   readonly message: string
 }
 
-/** Freeze a scope and its nested operation records against caller mutation. */
+/**
+ * Freeze a scope and its nested operation records against caller mutation.
+ *
+ * @param scope - scope captured when the authorization was granted.
+ * @returns a deep-frozen copy that shares no mutable state with the caller.
+ */
 export function freezeUncertaintyScope(scope: MissionUncertaintyScope): MissionUncertaintyScope {
   const operations = Object.freeze(scope.operations.map(operation => Object.freeze({ ...operation })))
   return Object.freeze({ ...scope, operations })
