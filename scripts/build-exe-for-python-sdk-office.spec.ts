@@ -148,23 +148,33 @@ it('takes npm integrity from the workspace lock without querying registry metada
   await expect(runtimeNpmArchive('@scope/fixture', '1.2.3', lockfile)).rejects.toThrow('missing SHA-512 integrity')
 })
 
-it('pins @swc/helpers so a deploy re-resolution cannot ship an unlocked version', async () => {
-  // Regression for the python-runtime failure
-  // "runtime npm lock: missing SHA-512 integrity for @swc/helpers@0.5.24".
-  // `fontkit` declares `@swc/helpers: ^0.5.12`. The workspace lock pinned
-  // 0.5.23, but `pnpm deploy` replays the range instead of the lock, so the
-  // deployed closure picked up 0.5.24 the day it was published. The override
-  // in pnpm-workspace.yaml (mirrored into pnpm-lock.yaml) is what keeps the
-  // deployed closure on the reviewed archive.
-  const ws = parseYaml(await readFile(join(import.meta.dirname, '../pnpm-workspace.yaml'), 'utf8')) as {
-    overrides?: Record<string, string>
-  }
-  expect(ws.overrides?.['@swc/helpers']).toBe('0.5.23')
-
-  const lock = parseYaml(await readFile(join(import.meta.dirname, '../pnpm-lock.yaml'), 'utf8')) as {
+it('pins the open ranges a deploy would otherwise re-resolve', async () => {
+  // Regressions for the python-runtime failures
+  //   "runtime npm lock: missing SHA-512 integrity for @swc/helpers@0.5.24"
+  //   "runtime npm lock: missing SHA-512 integrity for tslib@2.9.1".
+  // `fontkit` declares `@swc/helpers: ^0.5.12` and the sidecar chain declares
+  // `tslib: ^2.x`. The workspace lock reviewed 0.5.23 and 2.8.1, but `pnpm
+  // deploy` replays the ranges instead of the lock (it runs with a
+  // configuration that cannot read one), so the deployed closure picked up
+  // 0.5.24 and 2.9.1 the day they were published. The overrides in
+  // pnpm-workspace.yaml (mirrored into pnpm-lock.yaml) are what keep the
+  // deployed closure on the reviewed archives.
+  const expected: Record<string, string> = { '@swc/helpers': '0.5.23', tslib: '2.8.1' }
+  const workspace = parseYaml(await readFile(join(import.meta.dirname, '../pnpm-workspace.yaml'), 'utf8')) as {
     overrides?: Record<string, string>
   }
   // pnpm stores the workspace overrides in the lock header; a lock without the
   // mirror is reported as out of date on --frozen-lockfile.
-  expect(lock.overrides?.['@swc/helpers']).toBe('0.5.23')
+  const lock = parseYaml(await readFile(join(import.meta.dirname, '../pnpm-lock.yaml'), 'utf8')) as {
+    overrides?: Record<string, string>
+    packages?: Record<string, { resolution?: { integrity?: string } }>
+  }
+  for (const [name, version] of Object.entries(expected)) {
+    expect(workspace.overrides?.[name], `pnpm-workspace.yaml override for ${name}`).toBe(version)
+    expect(lock.overrides?.[name], `pnpm-lock.yaml override for ${name}`).toBe(version)
+    // An override pointing at a version the lock never reviewed would trade the
+    // "not in pnpm-lock.yaml" failure for the "missing SHA-512 integrity" one.
+    expect(lock.packages?.[`${name}@${version}`]?.resolution?.integrity, `reviewed archive for ${name}@${version}`)
+      .toMatch(/^sha512-/)
+  }
 })

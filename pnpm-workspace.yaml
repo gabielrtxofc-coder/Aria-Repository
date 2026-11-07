@@ -29,6 +29,13 @@ overrides:
   # future publish from silently changing what ships. Bump this together with
   # the lockfile regenerate, never on its own.
   '@swc/helpers': '0.5.23'
+  # `tslib` is the second package in the same class: the Office sidecar closure
+  # is produced by the same lockfile-free `pnpm deploy`, so once 2.9.1 was
+  # published the deployed closure carried it while the lock reviewed 2.8.1 and
+  # `runtimeNpmArchive()` refused to package it ("missing SHA-512 integrity for
+  # tslib@2.9.1"). Pinning keeps the sidecar on the reviewed archive; bump it
+  # together with the lockfile regenerate, never on its own.
+  tslib: '2.8.1'
 
 peerDependencyRules:
   allowedVersions:
