@@ -145,10 +145,39 @@ describe('mission projection unit', () => {
   })
 
   it('bounds the tracked calls so a long session cannot grow without limit', () => {
-    const events = Array.from({ length: 20 }, (_value, index) => callEvent(`call-${index}`, index))
+    const events = Array.from({ length: 40 }, (_value, index) => callEvent(`call-${index}`, index))
     const state = replay(events)
-    expect(state.pendingCalls).toHaveLength(16)
-    expect(state.pendingCalls[0]?.callId).toBe('call-4')
+    // Bounded, and the newest calls are the ones kept.
+    expect(state.pendingCalls).toHaveLength(22)
+    expect(state.pendingCalls[0]?.callId).toBe('call-18')
+    expect(state.pendingCalls.at(-1)?.callId).toBe('call-39')
+  })
+
+  /**
+   * Regression (preexisting): the pending tracker held fewer calls than one
+   * step can dispatch, so a wide fan-out silently pushed still-open calls out
+   * of the window. Their `TOOL_OUTCOME_UNKNOWN` results then matched nothing and
+   * recovery resumed the mission past a call whose external effect nobody had
+   * confirmed. A whole step's fan-out must be tracked.
+   */
+  it('tracks one full parallel step and reports every unknown outcome', () => {
+    const calls = Array.from({ length: 10 }, (_value, index) => callEvent(`call-${index}`, index))
+    const results = Array.from({ length: 10 }, (_value, index) =>
+      resultEvent(`call-${index}`, 100 + index, TOOL_OUTCOME_UNKNOWN))
+    const state = replay([...calls, ...results])
+    expect(state.pendingCalls).toHaveLength(0)
+    expect(state.uncertainOperations).toHaveLength(10)
+    expect(state.uncertainOverflow).toBeUndefined()
+  })
+
+  it('counts unknown outcomes it cannot list instead of forgetting them', () => {
+    const calls = Array.from({ length: 30 }, (_value, index) => callEvent(`call-${index}`, index))
+    const results = Array.from({ length: 30 }, (_value, index) =>
+      resultEvent(`call-${index}`, 100 + index, TOOL_OUTCOME_UNKNOWN))
+    const state = replay([...calls, ...results])
+    expect(state.uncertainOperations).toHaveLength(22)
+    // Eight recorded doubts could not be listed; the count keeps them visible.
+    expect(state.uncertainOverflow).toBe(8)
   })
 
   it('leaves unrelated events untouched', () => {

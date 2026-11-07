@@ -1588,9 +1588,15 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
       },
       {
         signature: 'uncertainOperations(agent: Agent): readonly UncertainOperation[]',
-        description: 'Recorded calls whose committed outcome is unknown, oldest first.',
+        description: 'Recorded calls whose committed outcome is unknown, oldest first.\n\nThis is what the durable log says about these calls, not what recovery still has to stop for: a doubt a human already reviewed stays visible here — the model still needs to know the outcome of a call nobody confirmed — and is excluded only from the backlog `unacknowledgedUncertainty` reports.',
         parameters: [{ name: 'agent', description: 'owning live agent.' }],
         returns: 'bounded call identities for recovery diagnostics.',
+      },
+      {
+        signature: 'uncertainOverflow(agent: Agent): number',
+        description: 'Unknown-outcome calls the bounded tracker could not list. Non-zero means the doubt is at least as serious as a listed call, so callers that gate on uncertainOperations must gate on this value too — and gate on both through unacknowledgedUncertainty, which is also what subtracts the reviews the mission record already carries.',
+        parameters: [{ name: 'agent', description: 'owning live agent.' }],
+        returns: 'how many unknown-outcome calls were counted but not listed.',
       },
       {
         signature: 'plan(agent: Agent): readonly RecoveryNoticeStep[]',
@@ -6120,7 +6126,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'MissionAuthorization',
-    declaration: 'export interface MissionAuthorization {\n    readonly code: string;\n    readonly message: string;\n}',
+    declaration: 'export interface MissionAuthorization {\n    readonly code: string;\n    readonly message: string;\n    readonly uncertaintyScope?: MissionUncertaintyScope | undefined;\n}',
   },
   {
     name: 'MissionChanged',
@@ -6156,11 +6162,11 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'MissionService',
-    declaration: 'export class MissionService extends Service {\n    static inject;\n    static Config: z<Config>;\n    readonly resolved: ResolvedConfig;\n    readonly ledger: RecoveryLedger;\n    readonly supervisor: MissionSupervisor;\n    constructor(ctx: Context, config: Config = {});\n    async [Service.init](): Promise<void>;\n    get(agent: Agent): MissionView | undefined;\n    uncertainOperations(agent: Agent): readonly UncertainOperation[];\n    plan(agent: Agent): readonly RecoveryNoticeStep[];\n    async start(agent: Agent, request: StartMissionRequest): Promise<MissionView>;\n    async checkpoint(agent: Agent, ref: MissionRef): Promise<MissionView>;\n    async recordAttempt(agent: Agent, ref: MissionRef, input: {\n        readonly interruption: MissionInterruption;\n    }): Promise<MissionView>;\n    async authorize(agent: Agent, ref: MissionRef, authorization: MissionAuthorization): Promise<MissionView>;\n    async resume(agent: Agent, ref: MissionRef): Promise<MissionView>;\n    async clear(agent: Agent, ref: MissionRef): Promise<MissionRef>;\n    async sweep(): Promise<MissionSweepReport>;\n    rowState(current: MissionSnapshot): \'armed\' | \'held\';\n}',
+    declaration: 'export class MissionService extends Service {\n    static inject;\n    static Config: z<Config>;\n    readonly resolved: ResolvedConfig;\n    readonly ledger: RecoveryLedger;\n    readonly supervisor: MissionSupervisor;\n    constructor(ctx: Context, config: Config = {});\n    async [Service.init](): Promise<void>;\n    get(agent: Agent): MissionView | undefined;\n    uncertainOperations(agent: Agent): readonly UncertainOperation[];\n    uncertainOverflow(agent: Agent): number;\n    plan(agent: Agent): readonly RecoveryNoticeStep[];\n    async start(agent: Agent, request: StartMissionRequest): Promise<MissionView>;\n    async checkpoint(agent: Agent, ref: MissionRef): Promise<MissionView>;\n    async recordAttempt(agent: Agent, ref: MissionRef, input: {\n        readonly interruption: MissionInterruption;\n    }): Promise<MissionView>;\n    async authorize(agent: Agent, ref: MissionRef, authorization: MissionAuthorization): Promise<MissionView>;\n    async resume(agent: Agent, ref: MissionRef): Promise<MissionView>;\n    async clear(agent: Agent, ref: MissionRef): Promise<MissionRef>;\n    async sweep(): Promise<MissionSweepReport>;\n    rowState(current: MissionSnapshot): \'armed\' | \'held\';\n}',
   },
   {
     name: 'MissionSnapshot',
-    declaration: 'export interface MissionSnapshot extends MissionRef {\n    readonly goal: GoalRef;\n    readonly completionCriteria: readonly string[];\n    readonly recovery: MissionRecoveryPolicy;\n    readonly maxRecoveryAttempts: number;\n    readonly attempts: number;\n    readonly interruption?: MissionInterruption | undefined;\n    readonly checkpoint?: MissionCheckpoint | undefined;\n    readonly authorization?: MissionAuthorization | undefined;\n    readonly createdAt: number;\n    readonly updatedAt: number;\n}',
+    declaration: 'export interface MissionSnapshot extends MissionRef {\n    readonly goal: GoalRef;\n    readonly completionCriteria: readonly string[];\n    readonly recovery: MissionRecoveryPolicy;\n    readonly maxRecoveryAttempts: number;\n    readonly attempts: number;\n    readonly interruption?: MissionInterruption | undefined;\n    readonly checkpoint?: MissionCheckpoint | undefined;\n    readonly authorization?: MissionAuthorization | undefined;\n    readonly uncertainAcknowledged?: number | undefined;\n    readonly createdAt: number;\n    readonly updatedAt: number;\n}',
   },
   {
     name: 'MissionSupervisor',
@@ -6168,7 +6174,11 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'MissionSweepReport',
-    declaration: 'export interface MissionSweepReport {\n    readonly considered: number;\n    readonly resumed: number;\n    readonly held: number;\n    readonly settled: number;\n    readonly exhausted: number;\n    readonly failed: number;\n}',
+    declaration: 'export interface MissionSweepReport {\n    readonly considered: number;\n    readonly resumed: number;\n    readonly held: number;\n    readonly settled: number;\n    readonly exhausted: number;\n    readonly failed: number;\n    readonly skipped: number;\n}',
+  },
+  {
+    name: 'MissionUncertaintyScope',
+    declaration: 'export interface MissionUncertaintyScope {\n    readonly from: number;\n    readonly through: number;\n    readonly operations: readonly UncertainOperation[];\n    readonly unlisted: number;\n}',
   },
   {
     name: 'MissionView',

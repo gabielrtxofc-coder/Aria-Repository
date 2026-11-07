@@ -43,12 +43,20 @@ function waitForever(): Promise<never> {
 
 /** Adapter whose first request publishes a failpoint and then never answers. */
 class CrashAdapter extends LlmAdapter {
+  /**
+   * Requests this adapter received. Recorded for the same reason the scripted
+   * adapter records them: the parent process counts recovery notices from the
+   * request text, and the crash mode must expose that surface too.
+   */
+  readonly requests: GenerateOptions[] = []
+
   /** @param failpoint - marker file the parent watches for. */
   constructor(private readonly failpoint: string) {
     super()
   }
 
-  override async * stream(_options: GenerateOptions): AsyncIterable<StreamChunk> {
+  override async * stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
+    this.requests.push(options)
     await writeFile(this.failpoint, 'turn-dispatched')
     await waitForever()
   }

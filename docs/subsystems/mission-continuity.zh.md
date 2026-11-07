@@ -88,6 +88,7 @@ ctx.on('mission/agent-setup', async (request, next) => ({
 ## 已知限制
 
 - 结果未知的调用不会被 Aria 重新执行，但模型可能再次发出非幂等调用；任务会记录这一不确定性并要求核对，且不承诺恰好一次。
+- 出现未知结果的调用会挂起任务，直到人工确认。这次确认是当时已记录结果的水位线，因此之后记录的疑问会再次挂起任务；水位线与任务一同折叠进会话日志，重建恢复索引不会带来过期的放行。
 - 恢复受 `maxMissionsPerSweep` 与 `defaultMaxRecoveryAttempts` 限制；耗尽会作为目标阻塞记录下来供人处理。
 - 待处理审批是持久的；恢复只有在审批通过之后才会继续。
 
@@ -117,10 +118,26 @@ get(agent: Agent): MissionView | undefined
 
 /**
  * Recorded calls whose committed outcome is unknown, oldest first.
+ *
+ * This is what the durable log says about these calls, not what recovery still
+ * has to stop for: a doubt a human already reviewed stays visible here — the
+ * model still needs to know the outcome of a call nobody confirmed — and is
+ * excluded only from the backlog `unacknowledgedUncertainty` reports.
  * @param agent - owning live agent.
  * @returns bounded call identities for recovery diagnostics.
  */
 uncertainOperations(agent: Agent): readonly UncertainOperation[]
+
+/**
+ * Unknown-outcome calls the bounded tracker could not list. Non-zero means the
+ * doubt is at least as serious as a listed call, so callers that gate on
+ * {@link uncertainOperations} must gate on this value too — and gate on both
+ * through {@link unacknowledgedUncertainty}, which is also what subtracts the
+ * reviews the mission record already carries.
+ * @param agent - owning live agent.
+ * @returns how many unknown-outcome calls were counted but not listed.
+ */
+uncertainOverflow(agent: Agent): number
 
 /**
  * Current plan entries from the todo projection, in plan order.
