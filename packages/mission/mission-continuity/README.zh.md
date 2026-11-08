@@ -30,10 +30,15 @@ kind: "package-reference"
 只有当组合层说明如何组合 Agent 时，恢复才能续接它。请通过 `mission/agent-setup` 监听器给出这个答案——随包提供的 `@deepseek-ai/dsh-mission-continuity/default-agent-plan` 插件用宿主的默认模型选择（`ctx.agentDefaultModel`）作答；若某个 profile 想要别的路由，只需在此之后注册自己的监听器，它的答案生效：
 
 ```ts
-ctx.on('mission/agent-setup', async (request, next) => ({
-  ...await next(request),
-  agentOptions: { provider: 'my-provider', model: 'my-model' },
-}))
+import type { Context } from '@deepseek-ai/cordis'
+import type { MissionAgentSetupPlan } from '@deepseek-ai/dsh-mission-continuity'
+
+export function apply(ctx: Context): void {
+  ctx.on('mission/agent-setup', async (request, next): Promise<MissionAgentSetupPlan> => ({
+    ...await next(request),
+    agentOptions: { provider: 'my-provider', model: 'my-model' },
+  }))
+}
 ```
 
 空的方案会用持久会话续接而不带 provider 与模型选项，于是第一次请求就会明确失败，而不会去猜一条路由。这种失败会把恢复行留在 `held` 并附上诊断，而不是丢失任务。

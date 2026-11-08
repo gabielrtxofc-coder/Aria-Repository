@@ -180,15 +180,69 @@ export function describeDeployDrift(drift: DeployClosureDrift): string[] {
     `verify-deploy-closure: ${name} has no SHA-512 integrity in pnpm-lock.yaml`)]
 }
 
-export function readPinnedOverrides(root: string): Map<string, string> {
+/**
+ * Read the `overrides` mapping of one workspace YAML file.
+ *
+ * A missing file contributes nothing — not every workspace declares overrides —
+ * but a file that exists and cannot be read or parsed is a hard error: silently
+ * returning an empty map would drop every pin this verifier exists to enforce.
+ * @param path - absolute path of `pnpm-workspace.yaml` or `pnpm-lock.yaml`.
+ * @returns the override entries, or `undefined` when the file does not exist.
+ */
+function readOverrideSection(path: string): Record<string, string> | undefined {
+  let source: string
   try {
-    const ws = parseYaml(readFileSync(join(root, 'pnpm-workspace.yaml'), 'utf8')) as { overrides?: Record<string, string> }
-    const lock = parseYaml(readFileSync(join(root, 'pnpm-lock.yaml'), 'utf8')) as { overrides?: Record<string, string> }
-    const merged = { ...ws.overrides, ...lock.overrides }
-    return new Map(Object.entries(merged).filter((entry): entry is [string, string] => typeof entry[1] === 'string'))
-  } catch {
-    return new Map()
+    source = readFileSync(path, 'utf8')
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined
+    throw new Error(`verify-deploy-closure: cannot read ${path}: ${error instanceof Error ? error.message : String(error)}`)
   }
+  let parsed: unknown
+  try {
+    parsed = parseYaml(source)
+  } catch (error) {
+    throw new Error(`verify-deploy-closure: cannot parse ${path}: ${error instanceof Error ? error.message : String(error)}`)
+  }
+  const overrides = (parsed as { overrides?: unknown } | null | undefined)?.overrides
+  if (overrides === undefined || overrides === null) return {}
+  if (typeof overrides !== 'object' || Array.isArray(overrides)) {
+    throw new Error(`verify-deploy-closure: ${path} has a non-mapping "overrides" section`)
+  }
+  return overrides as Record<string, string>
+}
+
+/**
+ * Pinned versions declared by `pnpm-workspace.yaml` and `pnpm-lock.yaml`.
+ *
+ * Keys may be scoped (`parent>child`). A hoisted closure holds one version per
+ * package name, so a scoped pin is enforced against its child name; two
+ * different pins for the same child are a conflict this verifier cannot resolve
+ * and it fails rather than guessing. `link:` pins address a workspace directory
+ * instead of a registry version, so they are not version pins here — the
+ * workspace comparison already covers those packages.
+ * @param root - repository root holding both workspace files.
+ * @returns package name to the single version it must resolve to.
+ */
+export function readPinnedOverrides(root: string): Map<string, string> {
+  const merged = {
+    ...readOverrideSection(join(root, 'pnpm-workspace.yaml')),
+    ...readOverrideSection(join(root, 'pnpm-lock.yaml')),
+  }
+  const pinned = new Map<string, string>()
+  for (const [key, value] of Object.entries(merged)) {
+    if (typeof value !== 'string') continue
+    if (value.startsWith('link:')) continue
+    const name = key.includes('>') ? key.slice(key.lastIndexOf('>') + 1) : key
+    const previous = pinned.get(name)
+    if (previous !== undefined && previous !== value) {
+      throw new Error(
+        `verify-deploy-closure: conflicting pins for ${name} (${previous} and ${value} from "${key}"); `
+        + 'a hoisted closure holds one version per package, so this pin cannot be verified',
+      )
+    }
+    pinned.set(name, value)
+  }
+  return pinned
 }
 
 export async function verifyDeployClosureVersions(root: string, staging: string): Promise<number> {
@@ -208,7 +262,10 @@ export async function verifyDeployClosureVersions(root: string, staging: string)
 }
 
 if (import.meta.filename === resolve(process.argv[1] ?? '')) {
-  const { values } = parseArgs({ options: { staging: { type: 'string' } } })
+  const { values } = parseArgs({
+    args: process.argv.slice(2).filter(argument => argument !== '--'),
+    options: { staging: { type: 'string' } },
+  })
   const root = resolve(import.meta.dirname, '..')
   const staging = resolve(values.staging ?? join(root, 'python', 'sdk-runtime', 'node'))
   try {

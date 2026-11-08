@@ -9,7 +9,7 @@
 import { createHash } from 'node:crypto'
 import { build as bundle } from 'tsdown'
 import { spawn } from 'node:child_process'
-import { pnpmInvocation, restoreLegacyHoists } from './executable-packaging.ts'
+import { deployClosureRunArgs, pnpmInvocation, pnpmVersionMismatch, restoreLegacyHoists } from './executable-packaging.ts'
 import { existsSync, statSync } from 'node:fs'
 import { chmod, copyFile, cp, glob, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { basename, dirname, join, resolve, sep } from 'node:path'
@@ -290,25 +290,26 @@ class SingleExeBuild {
     }
     const { packageManager } = JSON.parse(await readFile(join(root, 'package.json'), 'utf8')) as { packageManager: string }
     const expected = packageManager.startsWith('pnpm@') ? packageManager.slice('pnpm@'.length) : packageManager
-    const expectedMajor = expected.split('.')[0]
+    // A resolver we cannot identify is not a resolver we verified: an
+    // unreadable `pnpm --version` fails the build instead of silently
+    // continuing into a deploy whose re-resolution is then unchecked.
+    let deployed: string
     try {
-      const deployed = await new Promise<string>((resolvePromise, reject) => {
+      deployed = await new Promise<string>((resolvePromise, reject) => {
         const child = spawn(...pnpmInvocation(['--version']), { cwd: root, stdio: ['ignore', 'pipe', 'pipe'] })
         let out = ''
         child.stdout?.on('data', (chunk: Buffer) => { out += chunk.toString() })
         child.once('error', reject)
         child.once('exit', code => code === 0 ? resolvePromise(out.trim()) : reject(new Error(`pnpm --version exited ${String(code)}`)))
       })
-      if (!deployed.startsWith(`${expectedMajor}.`)) {
-        throw new Error(
-          `build-exe-for-python-sdk: pnpm ${deployed} does not match workspace packageManager ${packageManager} `
-          + `(expected major ${expectedMajor}); run with pnpm@${expected} (e.g. npx pnpm@${expected} --filter dsh-python-runtime-closure deploy)`,
-        )
-      }
     } catch (error) {
-      if (error instanceof Error && error.message.includes('does not match workspace packageManager')) throw error
-      console.warn(`build-exe-for-python-sdk: could not verify pnpm version: ${error instanceof Error ? error.message : String(error)}`)
+      throw new Error(
+        `build-exe-for-python-sdk: cannot determine the pnpm version the deploy will run with `
+        + `(${error instanceof Error ? error.message : String(error)}); the workspace requires ${packageManager}`,
+      )
     }
+    const mismatch = pnpmVersionMismatch(expected, deployed)
+    if (mismatch !== null) throw new Error(`build-exe-for-python-sdk: ${mismatch}`)
   }
 
   /** Clear and deploy the runtime closure into the node carrier. */
@@ -336,9 +337,13 @@ class SingleExeBuild {
       // Legacy deploy records production-only workspace state; restore the development installation before exec.
       await this.runPnpm('restore development dependencies', ['install', '--offline', '--frozen-lockfile', '--prod=false', '--ignore-scripts'])
     }
-    await this.verifyDeployedVersions()
     await this.restoreLegacyHoists()
     await this.materializeStagedLinks()
+    // Checked after the closure is assembled, not straight after `pnpm deploy`:
+    // restoreLegacyHoists and materializeStagedLinks move packages in (and
+    // replace workspace symlinks with the copies that actually ship), so the
+    // earlier state is not the closure this build packages.
+    await this.verifyDeployedVersions()
     if (this.cli.dryRun) {
       for (const name of DEPLOY_ONLY_DOCS) console.log(`build-exe-for-python-sdk: [dry-run] rm -f ${join(this.staging, name)}`)
     } else {
@@ -365,13 +370,7 @@ class SingleExeBuild {
       console.log('build-exe-for-python-sdk: [dry-run] verify deployed closure against pnpm-lock.yaml')
       return
     }
-    await this.runPnpm('deploy closure versions', [
-      'run',
-      'verify-deploy-closure',
-      '--',
-      '--staging',
-      this.staging,
-    ])
+    await this.runPnpm('deploy closure versions', deployClosureRunArgs(this.staging))
   }
 
   /**

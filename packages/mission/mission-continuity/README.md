@@ -30,10 +30,15 @@ Mount `dsh-mission-continuity` after the goal stack (`dsh-goal`, `dsh-goal-round
 Recovery can only resume an Agent if the composition says how to compose it. Provide that answer with a `mission/agent-setup` listener — the shipped `@deepseek-ai/dsh-mission-continuity/default-agent-plan` plugin answers with the host's default model selection (`ctx.agentDefaultModel`), and a profile that wants another route registers its own listener later and wins:
 
 ```ts
-ctx.on('mission/agent-setup', async (request, next) => ({
-  ...await next(request),
-  agentOptions: { provider: 'my-provider', model: 'my-model' },
-}))
+import type { Context } from '@deepseek-ai/cordis'
+import type { MissionAgentSetupPlan } from '@deepseek-ai/dsh-mission-continuity'
+
+export function apply(ctx: Context): void {
+  ctx.on('mission/agent-setup', async (request, next): Promise<MissionAgentSetupPlan> => ({
+    ...await next(request),
+    agentOptions: { provider: 'my-provider', model: 'my-model' },
+  }))
+}
 ```
 
 An empty plan resumes the durable session without provider or model options, which fails loud on the first request instead of guessing a route. That failure holds the recovery row with a diagnostic rather than losing the mission.

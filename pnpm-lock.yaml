@@ -9,6 +9,7 @@ overrides:
   '@deepseek-ai/cosmokit': link:vendor/cosmokit
   '@deepseek-ai/schemastery': link:vendor/schemastery
   '@swc/helpers': 0.5.23
+  tslib: 2.8.1
 
 patchedDependencies:
   '@earendil-works/pi-ai@1.0.2': 1cc211bc358d30cb58bd975f39c03e296f8a277c3de845514d12f9ae77ebab5f
