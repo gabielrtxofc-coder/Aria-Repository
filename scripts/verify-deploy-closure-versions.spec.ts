@@ -197,7 +197,7 @@ describe('verify-deploy-closure CLI invocation', () => {
     return join(root, 'staging')
   }
 
-  function runCli(args: readonly string[], staging: string): { status: number | null; stdout: string; stderr: string } {
+  function runCli(args: readonly string[]): { status: number | null; stdout: string; stderr: string } {
     const result = spawnSync(process.execPath, ['--import', 'tsx', script, ...args], {
       cwd: join(import.meta.dirname, '..'),
       encoding: 'utf8',
@@ -209,7 +209,7 @@ describe('verify-deploy-closure CLI invocation', () => {
   it('runs the call the builder really makes and passes a reviewed closure', async () => {
     const staging = await stagingWith(reviewed)
     // Exactly what pnpm delivers for `deployClosureRunArgs`: the flag, no separator.
-    const result = runCli(['--staging', staging], staging)
+    const result = runCli(['--staging', staging])
     expect(result.stderr).toBe('')
     expect(result.stdout).toContain('1 package(s) match pnpm-lock.yaml')
     expect(result.status).toBe(0)
@@ -217,7 +217,7 @@ describe('verify-deploy-closure CLI invocation', () => {
 
   it('fails the build when the deployed closure drifts from the pin', async () => {
     const staging = await stagingWith(drifted)
-    const result = runCli(['--staging', staging], staging)
+    const result = runCli(['--staging', staging])
     expect(result.status).toBe(1)
     expect(result.stderr).toContain(`@swc/helpers@${drifted} is not in pnpm-lock.yaml`)
     expect(result.stderr).toContain(`reviewed versions: ${reviewed}`)
@@ -227,7 +227,7 @@ describe('verify-deploy-closure CLI invocation', () => {
     // Defence in depth: an older builder, a manual run, or a future pnpm that
     // stops stripping `--` must not turn the check into a crash.
     const staging = await stagingWith(drifted)
-    const result = runCli(['--', '--staging', staging], staging)
+    const result = runCli(['--', '--staging', staging])
     expect(result.status).toBe(1)
     expect(result.stderr).toContain('is not in pnpm-lock.yaml')
   }, 60_000)
