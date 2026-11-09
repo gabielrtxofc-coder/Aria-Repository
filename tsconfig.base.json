@@ -347,6 +347,11 @@
       "@deepseek-ai/dsh-compaction-image-offload/projection": ["./packages/compaction/compaction-image-offload/src/projection.ts"],
       "@deepseek-ai/dsh-session-format-catalog/message-projections": ["./packages/session/session-format-catalog/src/message-projections.ts"],
       "@deepseek-ai/dsh-native-command/types": ["./packages/util/native-command/src/types.ts"],
+      // The Aria prototype names its packages after the brand, not the directory,
+      // so these three aliases stay hand-written like the util-* entries above.
+      "@deepseek-ai/dsh-aria-theme": ["./packages/aria/theme/src/index.ts"],
+      "@deepseek-ai/dsh-aria-wordmark": ["./packages/aria/wordmark/src/index.tsx"],
+      "@deepseek-ai/dsh-aria-prototype": ["./packages/aria/prototype/src/index.ts"],
       // BEGIN generated package aliases — pnpm run gen-tsconfig-paths
       "@deepseek-ai/dsh-acp": ["./packages/acp/acp/src"],
       "@deepseek-ai/dsh-acp-app": ["./packages/bundle/acp-app/src"],

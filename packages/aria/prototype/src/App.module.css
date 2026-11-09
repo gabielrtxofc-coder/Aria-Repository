@@ -1,0 +1,35 @@
+/* The prototype's root surface. Every child inherits the Aria tokens from this
+ * element, so the surrounding DSH shell keeps its own palette untouched. */
+
+.root {
+  min-height: 100vh;
+  background: var(--aria-bg-canvas);
+  color: var(--aria-text-primary);
+  font-family: var(--aria-font-text);
+  font-size: var(--aria-text-base);
+  line-height: var(--aria-text-base-line);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.root :focus-visible {
+  outline: var(--aria-focus-ring) solid var(--aria-focus-ring-color);
+  outline-offset: 2px;
+  border-radius: var(--aria-radius-xs);
+}
+
+.root ::selection {
+  background: rgb(200 241 105 / 26%);
+  color: var(--aria-text-100);
+}
+
+.pending {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 320px;
+  color: var(--aria-text-500);
+  font-size: var(--aria-text-sm);
+}

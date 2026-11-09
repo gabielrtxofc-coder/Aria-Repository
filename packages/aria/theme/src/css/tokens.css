@@ -1,0 +1,300 @@
+/*
+ * Aria design tokens.
+ *
+ * Two tiers, the same two tiers the DSH theme package uses:
+ *
+ * 1. `--aria-*` primitives — the brand's own palette, type scale, spacing
+ *    rhythm, radii, elevation and motion. Feature code reads these only through
+ *    the component CSS in this package and in `@deepseek-ai/dsh-aria-prototype`.
+ * 2. `--dsw-alias-*` rebinding — the DSH semantic aliases that the reused
+ *    ui-primitives atoms paint with. The second half of this file maps the
+ *    Aria palette onto them, so a `Button`, `Input`, `Modal`, `Tag` or `Switch`
+ *    keeps its own component contract and simply inherits the Aria look.
+ *
+ * The rebinding is scoped to `.aria-surface`, which the prototype puts on its
+ * own root element and, while it is mounted, on `body` as well. The body class
+ * exists only so that portalled overlays — the ui-primitives Modal and the
+ * prototype's Drawer, which mount under `document.body` — inherit the same
+ * tokens as the surface they cover. It is added on mount and removed on unmount,
+ * so a stock DSH session never sees these values.
+ */
+
+.aria-surface {
+  color-scheme: dark;
+
+  /* ---------------------------------------------------------------------
+   * Palette — graphite ground, limestone text, a single lime accent.
+   * Every value is sRGB so the contrast ratios documented in
+   * docs/ARIA-VISUAL-IDENTITY.md are reproducible.
+   * ------------------------------------------------------------------ */
+  --aria-ink-950: #0b0e0c;
+  --aria-ink-900: #101411;
+  --aria-ink-850: #121713;
+  --aria-ink-800: #181f19;
+  --aria-ink-750: #1d251e;
+  --aria-ink-700: #222c24;
+  --aria-line-900: #273128;
+  --aria-line-800: #313d32;
+  --aria-line-700: #3c4a3e;
+  --aria-text-050: #f8fbf5;
+  --aria-text-100: #f1f5ee;
+  --aria-text-200: #e2e8dd;
+  --aria-text-300: #cbd3c7;
+  --aria-text-400: #b2bdb1;
+  --aria-text-500: #9aa59a;
+  --aria-text-600: #7c887d;
+  --aria-text-700: #646e65;
+  --aria-lime-200: #e8fcc4;
+  --aria-lime-300: #dcf9a0;
+  --aria-lime-400: #c8f169;
+  --aria-lime-500: #b2db53;
+  --aria-lime-600: #8fb73a;
+  --aria-lime-ink: #0b0e0c;
+  --aria-lime-a08: rgb(200 241 105 / 8%);
+  --aria-lime-a14: rgb(200 241 105 / 14%);
+  --aria-lime-a24: rgb(200 241 105 / 24%);
+  --aria-amber-300: #f0cd8c;
+  --aria-amber-400: #e8b95c;
+  --aria-amber-a12: rgb(232 185 92 / 12%);
+  --aria-red-300: #f4a09a;
+  --aria-red-400: #ef7d75;
+  --aria-red-a12: rgb(239 125 117 / 12%);
+  --aria-blue-300: #aacdf0;
+  --aria-blue-400: #8fb6e8;
+  --aria-blue-a12: rgb(143 182 232 / 12%);
+
+  /* Semantic roles. Components consume these names, not the palette steps. */
+  --aria-bg-canvas: var(--aria-ink-950);
+  --aria-bg-surface: var(--aria-ink-850);
+  --aria-bg-elevated: var(--aria-ink-800);
+  --aria-bg-raised: var(--aria-ink-750);
+  --aria-bg-inset: var(--aria-ink-900);
+  --aria-bg-hover: rgb(241 245 238 / 5%);
+  --aria-bg-active: rgb(241 245 238 / 9%);
+  --aria-bg-sidebar: var(--aria-ink-900);
+  --aria-bg-topbar: rgb(11 14 12 / 82%);
+  --aria-border-subtle: var(--aria-line-900);
+  --aria-border-strong: var(--aria-line-800);
+  --aria-border-accent: var(--aria-lime-a24);
+  --aria-text-primary: var(--aria-text-100);
+  --aria-text-secondary: var(--aria-text-500);
+  --aria-text-tertiary: var(--aria-text-600);
+  --aria-text-accent: var(--aria-lime-400);
+  --aria-text-on-accent: var(--aria-lime-ink);
+  --aria-status-active: var(--aria-lime-400);
+  --aria-status-waiting: var(--aria-amber-400);
+  --aria-status-review: var(--aria-blue-400);
+  --aria-status-done: var(--aria-text-500);
+  --aria-status-failed: var(--aria-red-400);
+  --aria-status-idle: var(--aria-text-600);
+
+  /* ---------------------------------------------------------------------
+   * Geometry — a 4px rhythm and an architectural radius ladder. Squared-off
+   * large radii (3/6/10/14) read as a colonnade section rather than a bubble.
+   * ------------------------------------------------------------------ */
+  --aria-space-1: 4px;
+  --aria-space-2: 8px;
+  --aria-space-3: 12px;
+  --aria-space-4: 16px;
+  --aria-space-5: 20px;
+  --aria-space-6: 24px;
+  --aria-space-7: 32px;
+  --aria-space-8: 40px;
+  --aria-space-9: 48px;
+  --aria-space-10: 64px;
+  --aria-radius-xs: 3px;
+  --aria-radius-sm: 6px;
+  --aria-radius-md: 10px;
+  --aria-radius-lg: 14px;
+  --aria-radius-panel: 18px;
+  --aria-radius-pill: 999px;
+  --aria-hairline: 1px;
+
+  /* Control heights, shared by buttons, inputs and filter chips. */
+  --aria-control-sm: 28px;
+  --aria-control-md: 34px;
+  --aria-control-lg: 40px;
+
+  /* ---------------------------------------------------------------------
+   * Typography — Montserrat (the DSH brand face, already shipped by
+   * ui-theme/brand-font.css) for identity and headings, the inherited system
+   * stack for dense data, and the code stack for identifiers and timestamps.
+   * Every size carries its own line height.
+   * ------------------------------------------------------------------ */
+  --aria-font-display: var(--dsw-font-family-brand), var(--dsw-font-family);
+  --aria-font-text: var(--dsw-font-family);
+  --aria-font-mono: var(--ds-font-family-code);
+  --aria-text-2xs: 10px;
+  --aria-text-2xs-line: 14px;
+  --aria-text-xs: 11px;
+  --aria-text-xs-line: 16px;
+  --aria-text-sm: 12px;
+  --aria-text-sm-line: 18px;
+  --aria-text-base: 13px;
+  --aria-text-base-line: 20px;
+  --aria-text-md: 14px;
+  --aria-text-md-line: 22px;
+  --aria-text-lg: 17px;
+  --aria-text-lg-line: 24px;
+  --aria-text-xl: 22px;
+  --aria-text-xl-line: 28px;
+  --aria-text-2xl: 30px;
+  --aria-text-2xl-line: 36px;
+  --aria-weight-light: 300;
+  --aria-weight-regular: 400;
+  --aria-weight-medium: 500;
+  --aria-weight-semibold: 600;
+  --aria-tracking-display: 0.02em;
+  --aria-tracking-label: 0.08em;
+  --aria-tracking-data: 0.01em;
+
+  /* ---------------------------------------------------------------------
+   * Elevation — hairline stroke first, then a low-alpha ambient shadow. No
+   * glow, no colored shadow: the lime accent never becomes light.
+   * ------------------------------------------------------------------ */
+  --aria-elevation-hairline: inset 0 0 0 1px var(--aria-line-900);
+  --aria-elevation-card: 0 0 0 1px var(--aria-line-900), 0 18px 40px -28px rgb(0 0 0 / 90%);
+  --aria-elevation-raised: 0 0 0 1px var(--aria-line-800), 0 24px 56px -30px rgb(0 0 0 / 92%);
+  --aria-elevation-overlay: 0 0 0 1px var(--aria-line-800), 0 40px 88px -40px rgb(0 0 0 / 96%);
+
+  /* ---------------------------------------------------------------------
+   * Motion — one easing curve and three durations, all short enough to stay
+   * out of the way of the work the interface is reporting.
+   * ------------------------------------------------------------------ */
+  --aria-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --aria-ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  --aria-duration-fast: 90ms;
+  --aria-duration-base: 160ms;
+  --aria-duration-slow: 260ms;
+
+  /* Layout constants used by the shell and the responsive rules. */
+  --aria-sidebar-width: 248px;
+  --aria-sidebar-width-compact: 64px;
+  --aria-content-max: 1180px;
+  --aria-topbar-height: 60px;
+  --aria-focus-ring: 2px;
+  --aria-focus-ring-color: var(--aria-lime-400);
+}
+
+/* Reused ui-primitives atoms paint from the DSH semantic aliases. Rebinding
+ * them here — inside the prototype surface only — is what makes `Button`,
+ * `Input`, `Modal`, `Tag`, `Pill`, `Switch`, `Checkbox`, `SegmentedControl` and
+ * `StateDot` inherit the Aria palette without a second component copy. */
+.aria-surface {
+  --dsw-alias-bg-base: var(--aria-bg-canvas);
+  --dsw-alias-bg-layer-1: var(--aria-bg-surface);
+  --dsw-alias-bg-layer-2: var(--aria-bg-elevated);
+  --dsw-alias-bg-layer-3: var(--aria-bg-raised);
+  --dsw-alias-bg-skeleton: rgb(241 245 238 / 7%);
+  --dsw-alias-bg-mask-1: rgb(4 6 5 / 74%);
+  --dsw-alias-bg-mask-2: rgb(4 6 5 / 58%);
+  --dsw-alias-bg-mask-3: rgb(4 6 5 / 86%);
+  --dsw-alias-bg-overlay: var(--aria-bg-raised);
+  --dsw-alias-bg-module-platform: var(--aria-ink-750);
+  --dsw-alias-bg-multi-select: var(--aria-ink-750);
+
+  --dsw-alias-border-l1: var(--aria-line-900);
+  --dsw-alias-border-l2: var(--aria-line-900);
+  --dsw-alias-border-l2-darkmode-thin: var(--aria-line-900);
+  --dsw-alias-border-l3: var(--aria-line-800);
+  --dsw-alias-border-l4: var(--aria-line-800);
+
+  --dsw-alias-label-primary: var(--aria-text-100);
+  --dsw-alias-label-primary-dimmed: var(--aria-text-300);
+  --dsw-alias-label-primary-foreground: var(--aria-lime-ink);
+  --dsw-alias-label-primary-inverted: var(--aria-lime-ink);
+  --dsw-alias-label-secondary: var(--aria-text-300);
+  --dsw-alias-label-tertiary: var(--aria-text-500);
+  --dsw-alias-label-caption: var(--aria-text-600);
+  --dsw-alias-label-dimmed: var(--aria-text-600);
+  --dsw-alias-label-shimmer: rgb(241 245 238 / 34%);
+  --dsw-alias-label-primary-bluish: var(--aria-text-100);
+  --dsw-alias-menu-icon: var(--aria-text-500);
+
+  --dsw-alias-brand-primary: var(--aria-lime-400);
+  --dsw-alias-brand-primary-invert: var(--aria-text-100);
+  --dsw-alias-brand-text: var(--aria-text-100);
+  --dsw-alias-button-primary-fill: var(--aria-lime-400);
+  --dsw-alias-button-primary-hover: var(--aria-lime-300);
+  --dsw-alias-button-primary-dimmed: var(--aria-lime-a24);
+  --dsw-alias-button-contrast-fill: var(--aria-text-100);
+  --dsw-alias-button-elevated-fill: var(--aria-ink-750);
+  --dsw-alias-button-floating-fill: var(--aria-bg-elevated);
+  --dsw-alias-button-floating-hover: var(--aria-ink-750);
+  --dsw-alias-button-ghost-active-fill: var(--aria-ink-750);
+  --dsw-alias-button-ghost-active-hover: var(--aria-ink-700);
+  --dsw-alias-button-ghost-active-border: var(--aria-line-800);
+  --dsw-alias-button-info-fill: var(--aria-lime-400);
+  --dsw-alias-button-info-hover: var(--aria-lime-300);
+
+  --dsw-alias-interactive-bg-hover: var(--aria-bg-hover);
+  --dsw-alias-interactive-bg-active: var(--aria-bg-active);
+  --dsw-alias-interactive-bg-hover-solid: var(--aria-ink-750);
+  --dsw-alias-interactive-bg-hover-accent: var(--aria-lime-a14);
+  --dsw-alias-interactive-bg-hover-danger: var(--aria-red-a12);
+
+  --dsw-alias-state-business-primary: var(--aria-lime-400);
+  --dsw-alias-state-business-tertiary: var(--aria-ink-750);
+  --dsw-alias-state-success-primary: var(--aria-lime-400);
+  --dsw-alias-state-success-secondary: var(--aria-lime-500);
+  --dsw-alias-state-success-tertiary: var(--aria-lime-a14);
+  --dsw-alias-state-warn-primary: var(--aria-amber-400);
+  --dsw-alias-state-warn-secondary: var(--aria-amber-400);
+  --dsw-alias-state-warn-tertiary: var(--aria-amber-a12);
+  --dsw-alias-state-warn-label: var(--aria-amber-400);
+  --dsw-alias-state-error-primary: var(--aria-red-400);
+  --dsw-alias-state-error-secondary: var(--aria-red-400);
+  --dsw-alias-state-idle-primary: var(--aria-text-600);
+
+  --dsw-alias-link: var(--aria-lime-400);
+  --dsw-alias-toast-bg: var(--aria-ink-700);
+  --dsw-alias-toast-label: var(--aria-text-100);
+  --dsw-alias-tooltip-bg: var(--aria-ink-700);
+  --dsw-alias-tooltip-key-bg: var(--aria-ink-800);
+  --dsw-alias-switch-thumb: var(--aria-text-100);
+  --dsw-alias-scrollbar-bg-l1: #2c372e;
+  --dsw-alias-scrollbar-bg-l2: #38453a;
+  --dsw-alias-scrollbar-hover-l1: #3c4a3e;
+  --dsw-alias-scrollbar-hover-l2: #475a4a;
+  --dsw-alias-turn-trigger-bg: var(--aria-ink-800);
+  --dsw-alias-turn-trigger-bg-hover: var(--aria-ink-750);
+
+  --dsw-alias-markdown-code-block: var(--aria-ink-900);
+  --dsw-alias-markdown-code-block-banner: var(--aria-ink-850);
+  --dsw-alias-markdown-inline-code: var(--aria-ink-750);
+  --dsw-alias-markdown-citation: var(--aria-ink-750);
+  --dsw-alias-markdown-placeholder: var(--aria-ink-750);
+  --dsw-alias-markdown-tag: var(--aria-ink-750);
+
+  --dsw-specific-sidebar-fill: var(--aria-bg-sidebar);
+  --dsw-specific-sidebar-nav-item-active: var(--aria-ink-750);
+  --dsw-specific-sidebar-nav-item-hover: rgb(241 245 238 / 5%);
+  --dsw-specific-sidebar-nav-item-active-accent: var(--aria-lime-a14);
+  --dsw-specific-menu: var(--aria-ink-800);
+  --dsw-specific-selector: var(--aria-ink-750);
+  --dsw-specific-input-major: var(--aria-ink-800);
+  --dsw-specific-tip: var(--aria-ink-750);
+  --dsw-menu-surface-fill: var(--aria-ink-800);
+  --dsw-menu-backdrop-filter: none;
+  --dsw-alias-menu-group-header-fill: var(--aria-ink-800);
+
+  /* The DSH radius ladder is reused verbatim: the token names are the
+   * components' contract, the values are Aria's. */
+  --dsw-radius-xs: var(--aria-radius-xs);
+  --dsw-radius-sm: var(--aria-radius-sm);
+  --dsw-radius-md: var(--aria-radius-md);
+  --dsw-radius-lg: var(--aria-radius-lg);
+  --dsw-radius-xl: var(--aria-radius-lg);
+  --dsw-radius-panel: var(--aria-radius-panel);
+
+  --dsw-focus-ring-width: var(--aria-focus-ring);
+  --dsw-focus-ring-color: var(--aria-focus-ring-color);
+
+  /* ui-theme derives these per element from --dsw-elevation-stroke-color;
+   * rebinding the color here restyles every reused elevated surface at once. */
+  --dsw-elevation-stroke-color: var(--aria-line-800);
+  --dsw-mask-blur: none;
+  --dsw-static-deepseek-400: var(--aria-lime-400);
+  --dsw-static-deepseek-450: var(--aria-lime-400);
+  --dsw-static-deepseek-500: var(--aria-lime-500);
+}

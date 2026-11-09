@@ -1,0 +1,43 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/aria/wordmark/README.md
+/:
+  en: becde945bcb869a5
+  zh: bce5a564221e04d3
+/deepseek-ai-dsh-aria-wordmark:
+  en: b1d3ae6d9c5a00ac
+  zh: cd0a0963fe58af2f
+/deepseek-ai-dsh-aria-wordmark/summary:
+  en: 9030eda16af9adfd
+  zh: 1055e9f0354f7d10
+/deepseek-ai-dsh-aria-wordmark/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: d152484eb41ac6b4
+/deepseek-ai-dsh-aria-wordmark/use-this-package:
+  en: bbff250eba0f1b89
+  zh: bbff250eba0f1b89
+/deepseek-ai-dsh-aria-wordmark/use-this-package/when-to-use-it:
+  en: d4d962b8096affb2
+  zh: 877cb5d0eb80db66
+/deepseek-ai-dsh-aria-wordmark/use-this-package/entry-point:
+  en: ceca18420fe0c9b7
+  zh: 121bd7cf3311f2a7
+/deepseek-ai-dsh-aria-wordmark/understand-the-implementation:
+  en: 4ff8714063dcd5a1
+  zh: 515641c8e40d31f2
+/deepseek-ai-dsh-aria-wordmark/further-exploration:
+  en: f188cff3d915620f
+  zh: bc72847a6a4ef510
+/deepseek-ai-dsh-aria-wordmark/model-experience:
+  en: bfb8450204ad3614
+  zh: bfb8450204ad3614
+/deepseek-ai-dsh-aria-wordmark/model-experience/kv-cache-effect:
+  en: ca75c51c89c2c9b0
+  zh: ca75c51c89c2c9b0
+/deepseek-ai-dsh-aria-wordmark/known-limitations-and-deferred-work:
+  en: 1a4fa5131995d4c9
+  zh: a4f55522b352780b
+/deepseek-ai-dsh-aria-wordmark/known-limitations-and-deferred-work/dev-note:
+  en: 74cff67514965322
+  zh: 6800b9bc02d5feb5

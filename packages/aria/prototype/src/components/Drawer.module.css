@@ -1,0 +1,170 @@
+/* Detail drawer: a right-hand panel that slides over the workspace. It dims the
+ * page but never blurs it, keeps the workspace visible as context, and gives
+ * way to the primitive Modal when a confirmation needs the whole viewport. */
+
+.root {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  display: flex;
+  justify-content: flex-end;
+  pointer-events: none;
+}
+
+.scrim {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  background: rgb(4 6 5 / 58%);
+  backdrop-filter: none;
+  pointer-events: auto;
+  cursor: default;
+  animation: ariaScrimIn var(--aria-duration-base) var(--aria-ease);
+}
+
+.panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: min(560px, 100%);
+  max-width: 100%;
+  height: 100%;
+  margin-left: auto;
+  background: var(--aria-bg-surface);
+  border-left: 1px solid var(--aria-border-strong);
+  box-shadow: -40px 0 80px -60px rgb(0 0 0 / 100%);
+  pointer-events: auto;
+  animation: ariaDrawerIn var(--aria-duration-slow) var(--aria-ease);
+  outline: none;
+}
+
+.panel[data-width='wide'] {
+  width: min(720px, 100%);
+}
+
+@keyframes ariaScrimIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes ariaDrawerIn {
+  from { transform: translateX(24px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+@media (max-width: 720px) {
+  .panel,
+  .panel[data-width='wide'] {
+    width: 100%;
+  }
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--aria-space-4);
+  padding: var(--aria-space-5) var(--aria-space-5) var(--aria-space-4);
+  border-bottom: 1px solid var(--aria-border-subtle);
+}
+
+.headerText {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--aria-text-2xs);
+  line-height: var(--aria-text-2xs-line);
+  font-weight: var(--aria-weight-medium);
+  letter-spacing: var(--aria-tracking-label);
+  text-transform: uppercase;
+  color: var(--aria-text-600);
+}
+
+.title {
+  margin: 0;
+  font-family: var(--aria-font-display);
+  font-size: var(--aria-text-xl);
+  line-height: var(--aria-text-xl-line);
+  font-weight: var(--aria-weight-light);
+  letter-spacing: 0.01em;
+  color: var(--aria-text-primary);
+  overflow-wrap: anywhere;
+}
+
+.close {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--aria-control-sm);
+  height: var(--aria-control-sm);
+  border: none;
+  border-radius: var(--aria-radius-sm);
+  background: transparent;
+  color: var(--aria-text-500);
+  cursor: pointer;
+  transition: background var(--aria-duration-fast) var(--aria-ease), color var(--aria-duration-fast) var(--aria-ease);
+}
+
+.close:hover {
+  color: var(--aria-text-primary);
+  background: var(--aria-bg-hover);
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--aria-space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--aria-space-5);
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--aria-space-2);
+  padding: var(--aria-space-3) var(--aria-space-5);
+  border-top: 1px solid var(--aria-border-subtle);
+  background: var(--aria-bg-inset);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--aria-space-3);
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: var(--aria-text-2xs);
+  line-height: var(--aria-text-2xs-line);
+  font-weight: var(--aria-weight-medium);
+  letter-spacing: var(--aria-tracking-label);
+  text-transform: uppercase;
+  color: var(--aria-text-600);
+}
+
+.prose {
+  margin: 0;
+  font-size: var(--aria-text-base);
+  line-height: 21px;
+  color: var(--aria-text-300);
+  max-width: 62ch;
+}
+
+.proseMuted {
+  color: var(--aria-text-500);
+  font-size: var(--aria-text-sm);
+}

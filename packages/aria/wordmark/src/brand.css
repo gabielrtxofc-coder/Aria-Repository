@@ -1,0 +1,51 @@
+/* Aria wordmark: text in the brand face, so the name is always crisp and always
+ * the same as the font file the application ships. The period is the accent. */
+
+[data-aria-wordmark] {
+  display: inline-block;
+  font-family: var(--aria-font-display, 'Montserrat', sans-serif);
+  font-size: var(--aria-wordmark-size, 18px);
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: var(--aria-wordmark-tracking, 0.005em);
+  color: currentColor;
+  white-space: nowrap;
+}
+
+[data-aria-wordmark='capital'] {
+  font-weight: 400;
+  text-transform: uppercase;
+  /* The final tracking step trails the period; pull it back so the wordmark
+   * stays optically centred in its row. */
+  margin-right: -0.19em;
+}
+
+[data-aria-wordmark-period] {
+  color: var(--aria-lime-400, #c8f169);
+}
+
+[data-aria-lockup] {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+[data-aria-lockup-text] {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+[data-aria-lockup-tagline] {
+  font-family: var(--aria-font-text, sans-serif);
+  font-size: var(--aria-text-2xs, 10px);
+  line-height: var(--aria-text-2xs-line, 14px);
+  letter-spacing: var(--aria-tracking-label, 0.08em);
+  text-transform: uppercase;
+  color: var(--aria-text-600, #7c887d);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

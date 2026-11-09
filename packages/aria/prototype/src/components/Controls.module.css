@@ -1,0 +1,380 @@
+/* Controls the prototype adds on top of the reused ui-primitives atoms:
+ * the page header, the filter row, the search field, the progress bar and the
+ * metric block. Every one of them paints from theme tokens. */
+
+.pageHeader {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--aria-space-5);
+  flex-wrap: wrap;
+  padding-bottom: var(--aria-space-5);
+  border-bottom: 1px solid var(--aria-border-subtle);
+}
+
+.pageHeading {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.pageEyebrow {
+  font-size: var(--aria-text-2xs);
+  line-height: var(--aria-text-2xs-line);
+  font-weight: var(--aria-weight-medium);
+  letter-spacing: var(--aria-tracking-label);
+  text-transform: uppercase;
+  color: var(--aria-text-600);
+}
+
+.pageTitle {
+  margin: 0;
+  font-family: var(--aria-font-display);
+  font-size: var(--aria-text-2xl);
+  line-height: var(--aria-text-2xl-line);
+  font-weight: var(--aria-weight-light);
+  letter-spacing: var(--aria-tracking-display);
+  color: var(--aria-text-primary);
+}
+
+.pageSubtitle {
+  margin: 0;
+  max-width: 72ch;
+  font-size: var(--aria-text-md);
+  line-height: var(--aria-text-md-line);
+  color: var(--aria-text-500);
+}
+
+.pageActions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--aria-space-2);
+  flex-wrap: wrap;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--aria-space-4);
+  flex-wrap: wrap;
+}
+
+.filterRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+/* A filter row with seven statuses cannot wrap on a phone without becoming a
+ * two-line block that pushes the list down; below 760px it scrolls instead. The
+ * negative margin lets it bleed to the screen edge so the cut-off chip reads as
+ * "more to the right" rather than as a clipped control. Above that width the
+ * chips wrap normally. */
+@media (max-width: 760px) {
+  .filterRow[data-scroll] {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    margin-inline: calc(var(--aria-space-1) * -1);
+    padding-inline: var(--aria-space-1);
+    scrollbar-width: none;
+    overscroll-behavior-x: contain;
+  }
+
+  .filterRow[data-scroll]::-webkit-scrollbar {
+    display: none;
+  }
+
+  .filterRow[data-scroll] > * {
+    flex: 0 0 auto;
+  }
+}
+
+.filterChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--aria-control-sm);
+  padding: 0 10px;
+  border: none;
+  border-radius: var(--aria-radius-sm);
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--aria-border-subtle);
+  color: var(--aria-text-500);
+  font: inherit;
+  font-size: var(--aria-text-sm);
+  line-height: var(--aria-text-sm-line);
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background var(--aria-duration-fast) var(--aria-ease),
+    color var(--aria-duration-fast) var(--aria-ease),
+    box-shadow var(--aria-duration-fast) var(--aria-ease);
+}
+
+.filterChip:hover {
+  color: var(--aria-text-primary);
+  background: var(--aria-bg-hover);
+}
+
+.filterChip[aria-pressed='true'] {
+  color: var(--aria-text-primary);
+  background: var(--aria-bg-elevated);
+  box-shadow: inset 0 0 0 1px var(--aria-border-strong);
+}
+
+.filterCount {
+  font-size: var(--aria-text-2xs);
+  line-height: 1;
+  padding: 2px 5px;
+  border-radius: var(--aria-radius-xs);
+  background: rgb(241 245 238 / 7%);
+  color: var(--aria-text-500);
+  font-variant-numeric: tabular-nums;
+}
+
+.filterChip[aria-pressed='true'] .filterCount {
+  color: var(--aria-lime-300);
+  background: var(--aria-lime-a14);
+}
+
+.searchField {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 260px;
+  height: var(--aria-control-md);
+  padding: 0 10px;
+  border-radius: var(--aria-radius-sm);
+  background: var(--aria-bg-inset);
+  box-shadow: inset 0 0 0 1px var(--aria-border-subtle);
+  color: var(--aria-text-600);
+  transition: box-shadow var(--aria-duration-fast) var(--aria-ease);
+}
+
+.searchField:focus-within {
+  box-shadow: inset 0 0 0 1px var(--aria-lime-a24);
+  color: var(--aria-text-300);
+}
+
+.searchInput {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  font-size: var(--aria-text-base);
+  line-height: var(--aria-text-base-line);
+  color: var(--aria-text-primary);
+}
+
+.searchInput::placeholder {
+  color: var(--aria-text-600);
+}
+
+.searchClear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: var(--aria-radius-xs);
+  background: transparent;
+  color: var(--aria-text-500);
+  cursor: pointer;
+}
+
+.searchClear:hover {
+  color: var(--aria-text-primary);
+  background: var(--aria-bg-hover);
+}
+
+.shortcut {
+  font-family: var(--aria-font-mono);
+  font-size: var(--aria-text-2xs);
+  line-height: 1;
+  padding: 3px 5px;
+  border-radius: var(--aria-radius-xs);
+  color: var(--aria-text-600);
+  background: rgb(241 245 238 / 6%);
+  box-shadow: inset 0 0 0 1px var(--aria-border-subtle);
+}
+
+.progress {
+  --value: 0%;
+  position: relative;
+  height: 4px;
+  border-radius: var(--aria-radius-pill);
+  background: rgb(241 245 238 / 8%);
+  overflow: hidden;
+}
+
+.progressFill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: var(--value);
+  border-radius: var(--aria-radius-pill);
+  background: var(--aria-lime-400);
+  transition: width var(--aria-duration-slow) var(--aria-ease);
+}
+
+.progress[data-tone='muted'] .progressFill {
+  background: var(--aria-text-600);
+}
+
+.progress[data-tone='warn'] .progressFill {
+  background: var(--aria-amber-400);
+}
+
+.progress[data-tone='danger'] .progressFill {
+  background: var(--aria-red-400);
+}
+
+.progress[data-tone='review'] .progressFill {
+  background: var(--aria-blue-400);
+}
+
+.progressLegend {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: var(--aria-text-xs);
+  line-height: var(--aria-text-xs-line);
+  color: var(--aria-text-600);
+  font-variant-numeric: tabular-nums;
+}
+
+.metric {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.metricLabel {
+  font-size: var(--aria-text-2xs);
+  line-height: var(--aria-text-2xs-line);
+  font-weight: var(--aria-weight-medium);
+  letter-spacing: var(--aria-tracking-label);
+  text-transform: uppercase;
+  color: var(--aria-text-600);
+}
+
+.metricRow {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.metricValue {
+  font-family: var(--aria-font-display);
+  font-size: var(--aria-text-xl);
+  line-height: var(--aria-text-xl-line);
+  font-weight: var(--aria-weight-light);
+  letter-spacing: 0.01em;
+  color: var(--aria-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.metric[data-tone='accent'] .metricValue {
+  color: var(--aria-lime-400);
+}
+
+.metric[data-tone='warn'] .metricValue {
+  color: var(--aria-amber-400);
+}
+
+.metricDelta {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: var(--aria-text-xs);
+  line-height: var(--aria-text-xs-line);
+  color: var(--aria-text-500);
+  font-variant-numeric: tabular-nums;
+}
+
+.metricDelta[data-direction='up'] {
+  color: var(--aria-lime-400);
+}
+
+.metricDelta[data-direction='down'] {
+  color: var(--aria-red-400);
+}
+
+.metricDetail {
+  margin: 0;
+  font-size: var(--aria-text-sm);
+  line-height: var(--aria-text-sm-line);
+  color: var(--aria-text-500);
+}
+
+/* Inline notice: the prototype's own honesty banner, so no screen can be
+ * mistaken for a live view. */
+.notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: var(--aria-radius-sm);
+  font-size: var(--aria-text-xs);
+  line-height: var(--aria-text-xs-line);
+  color: var(--aria-text-500);
+  background: var(--aria-bg-elevated);
+  box-shadow: inset 0 0 0 1px var(--aria-border-subtle);
+}
+
+.noticeGlyph {
+  color: var(--aria-lime-500);
+  flex: none;
+  margin-top: 1px;
+}
+
+.tabs {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--aria-radius-sm);
+  background: var(--aria-bg-inset);
+  box-shadow: inset 0 0 0 1px var(--aria-border-subtle);
+}
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  border: none;
+  border-radius: var(--aria-radius-xs);
+  background: transparent;
+  color: var(--aria-text-500);
+  font: inherit;
+  font-size: var(--aria-text-sm);
+  cursor: pointer;
+}
+
+.tab:hover {
+  color: var(--aria-text-primary);
+}
+
+.tab[aria-selected='true'] {
+  color: var(--aria-text-primary);
+  background: var(--aria-bg-elevated);
+  box-shadow: inset 0 0 0 1px var(--aria-border-strong);
+}
+
+.kbdRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--aria-text-xs);
+  color: var(--aria-text-600);
+}

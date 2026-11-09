@@ -1,0 +1,116 @@
+/* New mission dialog body. The primitive Modal owns the card, the mask and the
+ * focus contract; this sheet only lays out the form. */
+
+.dialog {
+  width: min(520px, 100%);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--aria-space-4);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--aria-space-4);
+}
+
+.label {
+  font-size: var(--aria-text-xs);
+  line-height: var(--aria-text-xs-line);
+  font-weight: var(--aria-weight-medium);
+  letter-spacing: 0.02em;
+  color: var(--aria-text-500);
+}
+
+.textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 78px;
+  resize: vertical;
+  padding: 9px 10px;
+  border: none;
+  border-radius: var(--aria-radius-sm);
+  background: var(--aria-bg-inset);
+  box-shadow: inset 0 0 0 1px var(--aria-border-subtle);
+  color: var(--aria-text-primary);
+  font: inherit;
+  font-size: var(--aria-text-base);
+  line-height: 20px;
+  transition: box-shadow var(--aria-duration-fast) var(--aria-ease);
+}
+
+.textarea::placeholder {
+  color: var(--aria-text-600);
+}
+
+.textarea:focus {
+  outline: none;
+  box-shadow: inset 0 0 0 1px var(--aria-lime-a24), 0 0 0 2px rgb(200 241 105 / 12%);
+}
+
+.textarea[aria-invalid='true'] {
+  box-shadow: inset 0 0 0 1px var(--aria-red-400);
+}
+
+.input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.error {
+  margin: 0;
+  font-size: var(--aria-text-xs);
+  line-height: var(--aria-text-xs-line);
+  color: var(--aria-red-400);
+}
+
+.segmented {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--aria-radius-sm);
+  background: var(--aria-bg-inset);
+  box-shadow: inset 0 0 0 1px var(--aria-border-subtle);
+  flex-wrap: wrap;
+}
+
+.segment {
+  flex: 1;
+  min-width: 84px;
+  height: 26px;
+  padding: 0 8px;
+  border: none;
+  border-radius: var(--aria-radius-xs);
+  background: transparent;
+  color: var(--aria-text-500);
+  font: inherit;
+  font-size: var(--aria-text-sm);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--aria-duration-fast) var(--aria-ease), color var(--aria-duration-fast) var(--aria-ease);
+}
+
+.segment:hover:not(:disabled) {
+  color: var(--aria-text-primary);
+}
+
+.segment[aria-pressed='true'] {
+  color: var(--aria-lime-200);
+  background: color-mix(in oklab, var(--aria-lime-400) 11%, var(--aria-bg-elevated));
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--aria-lime-400) 40%, transparent);
+}
+
+.segment:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}

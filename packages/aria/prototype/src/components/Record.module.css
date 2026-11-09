@@ -1,0 +1,438 @@
+/* Record components shared by more than one screen: the mission card, the agent
+ * card and the activity row. Each one is a single interactive surface, so the
+ * whole card is the click target and the focus ring lands on the card. */
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--aria-space-3);
+  width: 100%;
+  padding: var(--aria-space-4);
+  border: none;
+  border-radius: var(--aria-radius-md);
+  background: var(--aria-bg-surface);
+  box-shadow: inset 0 0 0 1px var(--aria-border-subtle);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background var(--aria-duration-fast) var(--aria-ease),
+    box-shadow var(--aria-duration-fast) var(--aria-ease);
+}
+
+.card:hover {
+  background: var(--aria-bg-elevated);
+  box-shadow: inset 0 0 0 1px var(--aria-border-strong);
+}
+
+.card[data-selected] {
+  background: var(--aria-bg-elevated);
+  box-shadow: inset 0 0 0 1px var(--aria-lime-a24);
+}
+
+.cardTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--aria-space-3);
+  min-width: 0;
+}
+
+.cardHeading {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.cardTitle {
+  margin: 0;
+  font-family: var(--aria-font-display);
+  font-size: var(--aria-text-md);
+  line-height: var(--aria-text-md-line);
+  font-weight: var(--aria-weight-medium);
+  letter-spacing: 0.005em;
+  color: var(--aria-text-primary);
+  overflow-wrap: anywhere;
+}
+
+.cardSubtitle {
+  margin: 0;
+  font-size: var(--aria-text-sm);
+  line-height: var(--aria-text-sm-line);
+  color: var(--aria-text-500);
+  overflow-wrap: anywhere;
+}
+
+.cardMeta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: var(--aria-text-xs);
+  line-height: var(--aria-text-xs-line);
+  color: var(--aria-text-600);
+}
+
+.metaSep {
+  width: 1px;
+  height: 10px;
+  background: var(--aria-border-strong);
+}
+
+.mono {
+  font-family: var(--aria-font-mono);
+  letter-spacing: var(--aria-tracking-data);
+  font-variant-numeric: tabular-nums;
+}
+
+.avatarStack {
+  display: flex;
+  align-items: center;
+}
+
+.avatarChip {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-left: 3px;
+  border-radius: var(--aria-radius-xs);
+  background: var(--aria-ink-700);
+  box-shadow: 0 0 0 1px var(--aria-bg-surface);
+  color: var(--aria-text-300);
+  font-size: 9px;
+  line-height: 1;
+  font-weight: var(--aria-weight-medium);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.avatarChip:first-child {
+  margin-left: 0;
+}
+
+.cardFoot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--aria-space-3);
+}
+
+/* ------------------------------------------------------------- agent card */
+
+.agentCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--aria-space-3);
+  height: 100%;
+  padding: var(--aria-space-4);
+  border: none;
+  border-radius: var(--aria-radius-md);
+  background: var(--aria-bg-surface);
+  box-shadow: inset 0 0 0 1px var(--aria-border-subtle);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background var(--aria-duration-fast) var(--aria-ease),
+    box-shadow var(--aria-duration-fast) var(--aria-ease);
+}
+
+.agentCard:hover {
+  background: var(--aria-bg-elevated);
+  box-shadow: inset 0 0 0 1px var(--aria-border-strong);
+}
+
+.agentHead {
+  display: flex;
+  align-items: center;
+  gap: var(--aria-space-3);
+  min-width: 0;
+}
+
+.agentMark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border-radius: var(--aria-radius-sm);
+  background: var(--aria-ink-700);
+  box-shadow: inset 0 0 0 1px var(--aria-border-strong);
+  color: var(--aria-text-300);
+  font-family: var(--aria-font-display);
+  font-size: var(--aria-text-sm);
+  font-weight: var(--aria-weight-medium);
+  letter-spacing: 0.04em;
+}
+
+.agentCard[data-availability='available'] .agentMark {
+  color: var(--aria-lime-300);
+  background: var(--aria-lime-a08);
+  box-shadow: inset 0 0 0 1px var(--aria-lime-a24);
+}
+
+.agentCard[data-availability='offline'] .agentMark {
+  color: var(--aria-text-600);
+}
+
+.agentIdentity {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+
+.agentName {
+  margin: 0;
+  font-family: var(--aria-font-display);
+  font-size: var(--aria-text-md);
+  line-height: var(--aria-text-md-line);
+  font-weight: var(--aria-weight-medium);
+  color: var(--aria-text-primary);
+}
+
+.agentRole {
+  font-size: var(--aria-text-xs);
+  line-height: var(--aria-text-xs-line);
+  color: var(--aria-text-500);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.agentSummary {
+  margin: 0;
+  font-size: var(--aria-text-sm);
+  line-height: var(--aria-text-sm-line);
+  color: var(--aria-text-500);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.tagRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: var(--aria-radius-xs);
+  font-size: var(--aria-text-2xs);
+  line-height: 1;
+  letter-spacing: 0.02em;
+  color: var(--aria-text-500);
+  background: rgb(241 245 238 / 4%);
+  box-shadow: inset 0 0 0 1px var(--aria-border-subtle);
+  white-space: nowrap;
+}
+
+.tag[data-tone='accent'] {
+  color: var(--aria-lime-200);
+  background: color-mix(in oklab, var(--aria-lime-400) 10%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--aria-lime-400) 32%, transparent);
+}
+
+.tag[data-tone='muted'] {
+  color: var(--aria-text-600);
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--aria-border-subtle);
+}
+
+.tag[data-level='core'] {
+  color: var(--aria-text-300);
+}
+
+.tag[data-level='experimental'] {
+  color: var(--aria-text-600);
+  box-shadow: inset 0 0 0 1px var(--aria-border-subtle);
+  background: transparent;
+}
+
+.agentFoot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--aria-space-2);
+  margin-top: auto;
+  padding-top: var(--aria-space-2);
+  border-top: 1px solid var(--aria-border-subtle);
+  font-size: var(--aria-text-xs);
+  line-height: var(--aria-text-xs-line);
+  color: var(--aria-text-600);
+}
+
+/* ----------------------------------------------------------- activity row */
+
+.activityRow {
+  display: grid;
+  grid-template-columns: 92px 18px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--aria-space-3);
+  width: 100%;
+  padding: 10px var(--aria-space-3) 10px var(--aria-space-2);
+  border: none;
+  border-radius: var(--aria-radius-sm);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--aria-duration-fast) var(--aria-ease);
+}
+
+.activityRow:hover {
+  background: var(--aria-bg-hover);
+}
+
+.activityRow[data-selected] {
+  background: var(--aria-bg-elevated);
+}
+
+.activityTime {
+  font-family: var(--aria-font-mono);
+  font-size: var(--aria-text-xs);
+  line-height: var(--aria-text-xs-line);
+  color: var(--aria-text-600);
+  font-variant-numeric: tabular-nums;
+  padding-top: 1px;
+  white-space: nowrap;
+}
+
+.activityRail {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  padding-top: 5px;
+  align-self: stretch;
+}
+
+.activityRailLine {
+  position: absolute;
+  top: 13px;
+  bottom: -11px;
+  width: 1px;
+  background: var(--aria-border-subtle);
+}
+
+.activityBody {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.activityTitle {
+  margin: 0;
+  font-size: var(--aria-text-base);
+  line-height: var(--aria-text-base-line);
+  font-weight: var(--aria-weight-medium);
+  color: var(--aria-text-primary);
+  overflow-wrap: anywhere;
+}
+
+.activityDetail {
+  margin: 0;
+  font-size: var(--aria-text-sm);
+  line-height: var(--aria-text-sm-line);
+  color: var(--aria-text-500);
+  overflow-wrap: anywhere;
+}
+
+.activityTags {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 3px;
+  font-size: var(--aria-text-xs);
+  line-height: var(--aria-text-xs-line);
+  color: var(--aria-text-600);
+}
+
+.activityActor {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.activitySide {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  padding-top: 1px;
+}
+
+.outcomeChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: var(--aria-radius-xs);
+  font-size: var(--aria-text-2xs);
+  line-height: 1;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  color: var(--aria-text-500);
+  background: rgb(241 245 238 / 4%);
+}
+
+.outcomeChip[data-outcome='failure'] {
+  color: var(--aria-red-400);
+  background: var(--aria-red-a12);
+}
+
+.outcomeChip[data-outcome='attention'] {
+  color: var(--aria-amber-400);
+  background: var(--aria-amber-a12);
+}
+
+.outcomeChip[data-outcome='success'] {
+  color: var(--aria-lime-300);
+  background: var(--aria-lime-a08);
+}
+
+@media (max-width: 720px) {
+  .activityRow {
+    grid-template-columns: 18px minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .activityTime {
+    grid-column: 2;
+    grid-row: 2;
+    padding: 0;
+  }
+
+  .activitySide {
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: start;
+  }
+
+  .activityBody {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .activityRail {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+  }
+}

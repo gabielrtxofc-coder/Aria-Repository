@@ -1,0 +1,41 @@
+{
+  "name": "@deepseek-ai/dsh-aria-wordmark",
+  "description": "Aria brand artwork: the geometric A mark (open portal with lintel), the Montserrat wordmark, the sidebar lockup, and the square application icon",
+  "version": "0.2.1-alpha.2",
+  "private": true,
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gabielrtxofc-coder/Aria-Repository.git",
+    "directory": "packages/aria/wordmark"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./brand.css": "./lib/brand.css",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/brand.css",
+    "lib/types/**/*.d.ts"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:~",
+    "react": "^18.2.0"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "workspace:~",
+    "react": "^18.2.0",
+    "@types/react": "~18.3.1"
+  }
+}

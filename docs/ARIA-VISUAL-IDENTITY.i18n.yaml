@@ -1,0 +1,82 @@
+# Bilingual-pair consistency record for ARIA-VISUAL-IDENTITY.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/ARIA-VISUAL-IDENTITY.md
+/aria-visual-identity-and-interface-prototype:
+  en: fbe98fe63ea339b7
+  zh: 7f8e494567f7be8c
+/aria-visual-identity-and-interface-prototype/what-the-dsh-interface-is-and-what-the-prototype-does-to-it:
+  en: c1564e317e521d6d
+  zh: 7aef08ee521869ed
+/aria-visual-identity-and-interface-prototype/brand-identity:
+  en: 879be7218ae6eb7f
+  zh: c08e3f02addc2b10
+/aria-visual-identity-and-interface-prototype/brand-identity/the-mark:
+  en: 9e4945b538920cb5
+  zh: c21b7014baa99257
+/aria-visual-identity-and-interface-prototype/brand-identity/the-wordmark:
+  en: d0f434abe11e5077
+  zh: 2cfcd11f625aadb0
+/aria-visual-identity-and-interface-prototype/brand-identity/the-four-brand-variants:
+  en: b163df09442fbc0d
+  zh: da556e85965b282e
+/aria-visual-identity-and-interface-prototype/colour:
+  en: 4741371c022f57b4
+  zh: eb6016fbf3f54d4f
+/aria-visual-identity-and-interface-prototype/colour/measured-contrast:
+  en: b6196e92279a8d0d
+  zh: dddd4fe6d79e84f0
+/aria-visual-identity-and-interface-prototype/typography:
+  en: c7f0b40b0e1319c5
+  zh: cd804e3104d445d5
+/aria-visual-identity-and-interface-prototype/design-tokens:
+  en: cfa4349fd627072f
+  zh: 32824a7f6fb0fdbe
+/aria-visual-identity-and-interface-prototype/component-inventory:
+  en: 699c1204ac783cce
+  zh: 9bdf40879fd0239b
+/aria-visual-identity-and-interface-prototype/information-architecture:
+  en: 36c47ba3f8a2a82b
+  zh: a080473fc8298a33
+/aria-visual-identity-and-interface-prototype/the-screens:
+  en: 461bbc78ede0c15a
+  zh: 2a0e5026e7cf3459
+/aria-visual-identity-and-interface-prototype/the-screens/overview:
+  en: 6516d5854e3ccd22
+  zh: b5c8373c72b6fc5b
+/aria-visual-identity-and-interface-prototype/the-screens/missions:
+  en: 334654d0cd60a374
+  zh: caa901d0508736d8
+/aria-visual-identity-and-interface-prototype/the-screens/agents:
+  en: c12f4b1dd2548bc2
+  zh: 240f27c9703deb4c
+/aria-visual-identity-and-interface-prototype/the-screens/knowledge:
+  en: 220640cb0f516219
+  zh: 90b2748eea1a12e0
+/aria-visual-identity-and-interface-prototype/the-screens/activity:
+  en: 816914111df5197d
+  zh: feb7fe8499068a7e
+/aria-visual-identity-and-interface-prototype/the-screens/settings:
+  en: 97ab9ac22c93f37c
+  zh: fa57901548188d37
+/aria-visual-identity-and-interface-prototype/interaction-model:
+  en: 0e9bebcadbc3c177
+  zh: 15df441a6153210b
+/aria-visual-identity-and-interface-prototype/responsive-behaviour:
+  en: 167f5ef94c58c039
+  zh: 36836577a4f30d03
+/aria-visual-identity-and-interface-prototype/known-limitations:
+  en: 0f7f32bb25af4816
+  zh: bdb5d56989e75158
+/aria-visual-identity-and-interface-prototype/future-improvements:
+  en: 08767d1d3a22c6be
+  zh: b740ed912c034d12
+/aria-visual-identity-and-interface-prototype/validation:
+  en: 13fde08eaf0c52bd
+  zh: 01ccf595b53e8094
+/aria-visual-identity-and-interface-prototype/screenshots:
+  en: b87bb52967cf05a1
+  zh: a7827307d9d0907c
+/aria-visual-identity-and-interface-prototype/running-the-prototype:
+  en: e175db3e3671d9e3
+  zh: e9a22a17ac0e1ecb

@@ -1,0 +1,38 @@
+{
+  "name": "@deepseek-ai/dsh-aria-theme",
+  "description": "Aria visual identity: brand tokens, palette, typography scale, elevation, and the token overlay that rebinds the DSH semantic aliases for the Aria prototype",
+  "version": "0.2.1-alpha.2",
+  "private": true,
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gabielrtxofc-coder/Aria-Repository.git",
+    "directory": "packages/aria/theme"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./tokens.css": "./lib/tokens.css",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/tokens.css",
+    "lib/types/**/*.d.ts"
+  ],
+  "license": "MIT",
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:~"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "workspace:~"
+  }
+}

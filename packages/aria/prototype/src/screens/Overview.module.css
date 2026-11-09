@@ -1,0 +1,371 @@
+/* Overview: the operational dashboard. A workspace banner, four indicators, the
+ * mission and agent columns, the attention rail and the activity tail. The
+ * grid collapses to one column at 1024px and reflows its tiles at 720px. */
+
+.banner {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--aria-space-5);
+  flex-wrap: wrap;
+  padding: var(--aria-space-5);
+  border-radius: var(--aria-radius-lg);
+  background:
+    linear-gradient(96deg, rgb(200 241 105 / 6%) 0%, rgb(200 241 105 / 0%) 46%),
+    var(--aria-bg-surface);
+  box-shadow: inset 0 0 0 1px var(--aria-border-subtle);
+  overflow: hidden;
+}
+
+/* The banner's architectural rule: a single lime hairline that reads as the
+ * building line under the workspace name, not as a glow. */
+.banner::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: linear-gradient(180deg, var(--aria-lime-400), rgb(200 241 105 / 0%));
+}
+
+.bannerText {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.bannerGreeting {
+  font-size: var(--aria-text-2xs);
+  line-height: var(--aria-text-2xs-line);
+  font-weight: var(--aria-weight-medium);
+  letter-spacing: var(--aria-tracking-label);
+  text-transform: uppercase;
+  color: var(--aria-lime-500);
+}
+
+.bannerTitle {
+  margin: 0;
+  font-family: var(--aria-font-display);
+  font-size: var(--aria-text-xl);
+  line-height: var(--aria-text-xl-line);
+  font-weight: var(--aria-weight-light);
+  letter-spacing: var(--aria-tracking-display);
+  color: var(--aria-text-primary);
+}
+
+.bannerDetail {
+  margin: 0;
+  font-size: var(--aria-text-base);
+  line-height: var(--aria-text-base-line);
+  color: var(--aria-text-500);
+  max-width: 60ch;
+}
+
+.bannerActions {
+  display: flex;
+  align-items: center;
+  gap: var(--aria-space-2);
+  flex-wrap: wrap;
+}
+
+.indicatorGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--aria-space-3);
+}
+
+.indicatorCell {
+  padding: var(--aria-space-4);
+  border-radius: var(--aria-radius-md);
+  background: var(--aria-bg-surface);
+  box-shadow: inset 0 0 0 1px var(--aria-border-subtle);
+}
+
+.columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+  gap: var(--aria-space-4);
+  align-items: start;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--aria-space-4);
+  min-width: 0;
+}
+
+.missionList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--aria-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.agentList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.agentRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px;
+  border: none;
+  border-radius: var(--aria-radius-sm);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--aria-duration-fast) var(--aria-ease);
+}
+
+.agentRow:hover {
+  background: var(--aria-bg-hover);
+}
+
+.agentMark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex: none;
+  border-radius: var(--aria-radius-xs);
+  background: var(--aria-ink-700);
+  box-shadow: inset 0 0 0 1px var(--aria-border-strong);
+  color: var(--aria-text-300);
+  font-family: var(--aria-font-display);
+  font-size: var(--aria-text-2xs);
+  font-weight: var(--aria-weight-medium);
+  letter-spacing: 0.04em;
+}
+
+.agentRow[data-availability='available'] .agentMark {
+  color: var(--aria-lime-300);
+  background: var(--aria-lime-a08);
+  box-shadow: inset 0 0 0 1px var(--aria-lime-a24);
+}
+
+.agentRow[data-availability='offline'] .agentMark {
+  color: var(--aria-text-600);
+}
+
+.agentText {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+
+.agentName {
+  font-size: var(--aria-text-base);
+  line-height: var(--aria-text-base-line);
+  color: var(--aria-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.agentRole {
+  font-size: var(--aria-text-xs);
+  line-height: var(--aria-text-xs-line);
+  color: var(--aria-text-600);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.agentState {
+  flex: none;
+  font-size: var(--aria-text-2xs);
+  line-height: 1;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--aria-text-600);
+}
+
+/* Attention rail: the two or three decisions the operator has to make. Each
+ * row is a link-shaped action rather than another statistics tile. */
+.attentionList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--aria-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.attentionItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px;
+  border-radius: var(--aria-radius-sm);
+  background: var(--aria-amber-a12);
+  box-shadow: inset 0 0 0 1px rgb(232 185 92 / 20%);
+}
+
+.attentionGlyph {
+  flex: none;
+  margin-top: 1px;
+  color: var(--aria-amber-400);
+}
+
+.attentionText {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  flex: 1;
+}
+
+.attentionTitle {
+  margin: 0;
+  font-size: var(--aria-text-base);
+  line-height: var(--aria-text-base-line);
+  font-weight: var(--aria-weight-medium);
+  color: var(--aria-text-100);
+  overflow-wrap: anywhere;
+}
+
+.attentionDetail {
+  margin: 0;
+  font-size: var(--aria-text-sm);
+  line-height: var(--aria-text-sm-line);
+  color: var(--aria-text-500);
+  overflow-wrap: anywhere;
+}
+
+.attentionAction {
+  flex: none;
+  align-self: center;
+}
+
+.pipelineList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--aria-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pipelineItem {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 56px;
+  align-items: start;
+  gap: var(--aria-space-3);
+  padding-block: 2px;
+}
+
+.pipelineName {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.pipelineTitle {
+  font-size: var(--aria-text-sm);
+  line-height: var(--aria-text-sm-line);
+  color: var(--aria-text-300);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pipelineStep {
+  font-size: var(--aria-text-2xs);
+  line-height: var(--aria-text-2xs-line);
+  color: var(--aria-text-600);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pipelineValue {
+  padding-top: 1px;
+  font-family: var(--aria-font-mono);
+  font-size: var(--aria-text-2xs);
+  line-height: var(--aria-text-2xs-line);
+  color: var(--aria-text-500);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.activityList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.footLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: transparent;
+  padding: 0;
+  color: var(--aria-text-500);
+  font: inherit;
+  font-size: var(--aria-text-sm);
+  cursor: pointer;
+}
+
+.footLink:hover {
+  color: var(--aria-lime-400);
+}
+
+@media (max-width: 1100px) {
+  .indicatorGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 720px) {
+  .indicatorGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .banner {
+    padding: var(--aria-space-4);
+  }
+
+  .bannerActions {
+    width: 100%;
+  }
+
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}

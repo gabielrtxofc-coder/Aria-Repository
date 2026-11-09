@@ -1,0 +1,432 @@
+/* Missions: the register grid plus the detail drawer's plan, review, artifact
+ * and event substructures. The grid is deliberately two columns at desktop
+ * width — a mission card needs a title, one progress line and one metadata line,
+ * and three columns would push the metadata onto two lines each. */
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--aria-space-3);
+  margin-bottom: var(--aria-space-5);
+}
+
+.metricCell {
+  padding: var(--aria-space-4) var(--aria-space-5);
+  border-radius: var(--aria-radius-md);
+  background: var(--aria-bg-surface);
+  box-shadow: inset 0 0 0 1px var(--aria-border-subtle);
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--aria-space-4);
+  padding-bottom: var(--aria-space-3);
+  border-bottom: 1px solid var(--aria-border-subtle);
+}
+
+.toolbar > :last-child {
+  width: min(280px, 100%);
+  flex: none;
+}
+
+.count {
+  margin: var(--aria-space-3) 0 var(--aria-space-4);
+  color: var(--aria-text-500);
+  font-size: var(--aria-text-xs);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--aria-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.grid > li {
+  display: flex;
+  min-width: 0;
+}
+
+.grid > li > * {
+  flex: 1;
+}
+
+.mono {
+  font-family: var(--aria-font-mono);
+  font-size: 0.94em;
+  letter-spacing: 0.01em;
+}
+
+/* ---- drawer body ---------------------------------------------------------- */
+
+.detailHeader {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--aria-space-4);
+  padding-bottom: var(--aria-space-4);
+  border-bottom: 1px solid var(--aria-border-subtle);
+}
+
+.detailProgress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.detailProgressMeta {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--aria-space-3);
+  color: var(--aria-text-500);
+  font-size: var(--aria-text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.steps {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
+}
+
+.step {
+  position: relative;
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
+  gap: var(--aria-space-3);
+  padding-bottom: var(--aria-space-4);
+}
+
+/* The connector between markers: a hairline, not a decorative rule. */
+.step:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  top: 22px;
+  bottom: 2px;
+  left: 12px;
+  width: 1px;
+  background: var(--aria-border-subtle);
+}
+
+.step[data-state='done']:not(:last-child)::before {
+  background: color-mix(in oklab, var(--aria-lime-400) 30%, var(--aria-border-subtle));
+}
+
+.stepMarker {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 25px;
+  height: 25px;
+  border-radius: 50%;
+  background: var(--aria-bg-elevated);
+  box-shadow: inset 0 0 0 1px var(--aria-border-strong);
+  color: var(--aria-text-500);
+  font-family: var(--aria-font-mono);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.step[data-state='done'] .stepMarker {
+  background: color-mix(in oklab, var(--aria-lime-400) 14%, var(--aria-bg-elevated));
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--aria-lime-400) 34%, transparent);
+  color: var(--aria-lime-300);
+}
+
+.step[data-state='active'] .stepMarker {
+  background: color-mix(in oklab, var(--aria-lime-400) 16%, var(--aria-bg-elevated));
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--aria-lime-400) 52%, transparent);
+  color: var(--aria-lime-300);
+}
+
+.step[data-state='failed'] .stepMarker {
+  background: color-mix(in oklab, var(--aria-red-400) 16%, var(--aria-bg-elevated));
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--aria-red-400) 44%, transparent);
+  color: var(--aria-red-300);
+}
+
+.step[data-state='pending'] .stepMarker {
+  color: var(--aria-text-600);
+  box-shadow: inset 0 0 0 1px var(--aria-border-subtle);
+}
+
+.step[data-state='pending'] .stepTitle {
+  color: var(--aria-text-600);
+}
+
+.stepBody {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.stepTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--aria-space-2);
+  color: var(--aria-text-100);
+  font-size: var(--aria-text-sm);
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+.stepNow {
+  padding: 1px 6px;
+  border-radius: var(--aria-radius-pill);
+  background: color-mix(in oklab, var(--aria-lime-400) 14%, transparent);
+  color: var(--aria-lime-300);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: var(--aria-tracking-label);
+  text-transform: uppercase;
+}
+
+.stepDetail {
+  color: var(--aria-text-500);
+  font-size: var(--aria-text-xs);
+  line-height: 1.55;
+}
+
+.stepMeta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 3px;
+  color: var(--aria-text-600);
+  font-size: 10px;
+  letter-spacing: 0.03em;
+}
+
+.stepMeta > span:not(:first-child)::before,
+.stepAgent + .mono::before {
+  content: '·';
+  margin-right: 6px;
+  color: var(--aria-text-600);
+}
+
+.stepAgent {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--aria-text-300);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+  transition: color var(--aria-duration-fast) var(--aria-ease);
+}
+
+.stepAgent:hover {
+  color: var(--aria-lime-300);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in oklab, var(--aria-lime-400) 50%, transparent);
+}
+
+.reviewRow {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: var(--aria-space-3);
+  align-items: start;
+  padding: var(--aria-space-3) var(--aria-space-4);
+  border-radius: var(--aria-radius-sm);
+  background: var(--aria-bg-elevated);
+  box-shadow: inset 0 0 0 1px var(--aria-border-subtle);
+}
+
+.reviewGlyph {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--aria-radius-xs);
+  color: var(--aria-text-300);
+  background: rgb(241 245 238 / 5%);
+}
+
+.reviewGlyph[data-tone='warn'] {
+  color: var(--aria-amber-300);
+  background: color-mix(in oklab, var(--aria-amber-400) 12%, transparent);
+}
+
+.reviewGlyph[data-tone='danger'] {
+  color: var(--aria-red-300);
+  background: color-mix(in oklab, var(--aria-red-400) 12%, transparent);
+}
+
+.reviewText {
+  margin: 3px 0 0;
+  color: var(--aria-text-200);
+  font-size: var(--aria-text-sm);
+  line-height: 1.55;
+}
+
+.artifacts {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.artifact {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--aria-space-3);
+  padding: 10px var(--aria-space-3);
+  border-radius: var(--aria-radius-sm);
+  background: var(--aria-bg-elevated);
+  box-shadow: inset 0 0 0 1px var(--aria-border-subtle);
+}
+
+.artifactGlyph {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--aria-radius-xs);
+  color: var(--aria-text-400);
+  background: rgb(241 245 238 / 5%);
+}
+
+.artifactText {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.artifactName {
+  overflow: hidden;
+  color: var(--aria-text-100);
+  font-size: var(--aria-text-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.artifactMeta {
+  color: var(--aria-text-500);
+  font-size: var(--aria-text-xs);
+}
+
+.artifactKind {
+  color: var(--aria-text-600);
+  font-family: var(--aria-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.events {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.event {
+  display: grid;
+  grid-template-columns: 42px 12px minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--aria-space-2);
+  padding: 7px 0;
+}
+
+.event + .event {
+  border-top: 1px solid var(--aria-border-subtle);
+}
+
+.eventTime {
+  color: var(--aria-text-500);
+  font-family: var(--aria-font-mono);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.eventText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--aria-text-200);
+  font-size: var(--aria-text-sm);
+  line-height: 1.5;
+}
+
+.eventActor {
+  color: var(--aria-text-600);
+  font-size: 10px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.detailFooter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: var(--aria-space-4) 0 0;
+  padding-top: var(--aria-space-4);
+  border-top: 1px solid var(--aria-border-subtle);
+  color: var(--aria-text-600);
+  font-size: var(--aria-text-xs);
+}
+
+@media (max-width: 1180px) {
+  .metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 860px) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--aria-space-3);
+  }
+
+  .toolbar > :last-child {
+    width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .metricCell {
+    padding: var(--aria-space-3);
+  }
+
+  .artifact {
+    grid-template-columns: 26px minmax(0, 1fr);
+  }
+
+  .artifactKind {
+    display: none;
+  }
+
+  .detailHeader {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

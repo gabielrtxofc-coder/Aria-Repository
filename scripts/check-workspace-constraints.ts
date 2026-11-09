@@ -377,9 +377,20 @@ export function checkExperimentalNameExceptions(manifests: readonly WorkspaceMan
   return errors
 }
 
-function isReleaseMemberDirectory(dir: string): boolean {
+/** Workspace members that are never published and so are exempt from release-member policy. */
+const unpublishedPackageDirectories = new Set([
   // The SSH carrier is distributed as executable archives, never as an npm application.
-  if (dir === 'packages/ssh/ssh-helper-runtime') return false
+  'packages/ssh/ssh-helper-runtime',
+  // The Aria brand and prototype packages are workspace-only design assets: they
+  // carry no service code, are consumed from source by the prototype and its
+  // preview, and must never enter the dsh release sequence.
+  'packages/aria/theme',
+  'packages/aria/wordmark',
+  'packages/aria/prototype',
+])
+
+function isReleaseMemberDirectory(dir: string): boolean {
+  if (unpublishedPackageDirectories.has(dir)) return false
   return standardReleaseMemberDirectory.test(dir) || isPublicExperimentalPackageDirectory(dir)
 }
 

@@ -1,0 +1,43 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/aria/theme/README.md
+/:
+  en: 9f1d47f8767edcce
+  zh: 6723ed019bccba49
+/deepseek-ai-dsh-aria-theme:
+  en: 1bf93afb73d115a6
+  zh: 7ce09956f9c12059
+/deepseek-ai-dsh-aria-theme/summary:
+  en: 7796a6459cfb424d
+  zh: 04750680280f54b4
+/deepseek-ai-dsh-aria-theme/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: d152484eb41ac6b4
+/deepseek-ai-dsh-aria-theme/use-this-package:
+  en: bbff250eba0f1b89
+  zh: bbff250eba0f1b89
+/deepseek-ai-dsh-aria-theme/use-this-package/when-to-use-it:
+  en: f7edb46fc5a6c9a2
+  zh: 2faa002ddf7a7420
+/deepseek-ai-dsh-aria-theme/use-this-package/entry-point:
+  en: 9b2ad7dc322092c5
+  zh: e95b2aa5a3997111
+/deepseek-ai-dsh-aria-theme/understand-the-implementation:
+  en: 0f9e95b5f51cab53
+  zh: 4ac5f298e58ddfce
+/deepseek-ai-dsh-aria-theme/further-exploration:
+  en: 94bea1cfcaa4ff94
+  zh: 9007baedefce00e7
+/deepseek-ai-dsh-aria-theme/model-experience:
+  en: 0059f14c0d459ae2
+  zh: 0059f14c0d459ae2
+/deepseek-ai-dsh-aria-theme/model-experience/kv-cache-effect:
+  en: ca75c51c89c2c9b0
+  zh: ca75c51c89c2c9b0
+/deepseek-ai-dsh-aria-theme/known-limitations-and-deferred-work:
+  en: fcf6a3f8f8759ca6
+  zh: 3aee0244d82aaf93
+/deepseek-ai-dsh-aria-theme/known-limitations-and-deferred-work/dev-note:
+  en: 2563115a9d432b94
+  zh: b26f5f9a69a4a909

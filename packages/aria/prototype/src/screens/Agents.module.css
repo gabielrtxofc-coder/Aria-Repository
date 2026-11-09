@@ -1,0 +1,306 @@
+/* Agents: roster grid and the agent drawer's facts, capabilities and log. */
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--aria-space-3);
+  margin-bottom: var(--aria-space-5);
+}
+
+.metricCell {
+  padding: var(--aria-space-4) var(--aria-space-5);
+  border-radius: var(--aria-radius-md);
+  background: var(--aria-bg-surface);
+  box-shadow: inset 0 0 0 1px var(--aria-border-subtle);
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--aria-space-4);
+  padding-bottom: var(--aria-space-4);
+  border-bottom: 1px solid var(--aria-border-subtle);
+}
+
+.toolbarNote {
+  max-width: 34ch;
+  margin: 0;
+  color: var(--aria-text-600);
+  font-size: var(--aria-text-xs);
+  line-height: 1.5;
+  text-align: right;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--aria-space-3);
+  margin: var(--aria-space-4) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.grid > li {
+  display: flex;
+  min-width: 0;
+}
+
+.grid > li > * {
+  flex: 1;
+}
+
+.mono {
+  font-family: var(--aria-font-mono);
+  font-size: 0.94em;
+}
+
+.hero {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--aria-space-3);
+  padding-bottom: var(--aria-space-4);
+  border-bottom: 1px solid var(--aria-border-subtle);
+}
+
+.heroMark {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--aria-radius-sm);
+  background: var(--aria-bg-elevated);
+  box-shadow: inset 0 0 0 1px var(--aria-border-strong);
+  color: var(--aria-lime-300);
+  font-family: var(--aria-font-mono);
+  font-size: 13px;
+  letter-spacing: 0.06em;
+}
+
+.heroText {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.heroRole {
+  margin: 0;
+  color: var(--aria-text-100);
+  font-size: var(--aria-text-md);
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.heroSummary {
+  margin: 0;
+  color: var(--aria-text-500);
+  font-size: var(--aria-text-sm);
+  line-height: 1.55;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  margin: var(--aria-space-4) 0;
+  border-radius: var(--aria-radius-sm);
+  overflow: hidden;
+  background: var(--aria-border-subtle);
+}
+
+.facts > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px var(--aria-space-3);
+  background: var(--aria-bg-surface);
+}
+
+.facts span {
+  color: var(--aria-text-500);
+  font-size: 9px;
+  letter-spacing: var(--aria-tracking-label);
+  text-transform: uppercase;
+}
+
+.facts strong {
+  color: var(--aria-text-100);
+  font-size: var(--aria-text-sm);
+  font-weight: 500;
+}
+
+.capabilities {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.capability {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--aria-space-3);
+  padding: 9px var(--aria-space-3);
+  border-radius: var(--aria-radius-sm);
+  background: var(--aria-bg-elevated);
+  box-shadow: inset 0 0 0 1px var(--aria-border-subtle);
+}
+
+.capabilityGlyph {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--aria-radius-xs);
+  color: var(--aria-text-400);
+  background: rgb(241 245 238 / 5%);
+}
+
+.capabilityText {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.capabilityName {
+  color: var(--aria-text-100);
+  font-size: var(--aria-text-sm);
+}
+
+.capabilityNote {
+  color: var(--aria-text-500);
+  font-size: var(--aria-text-xs);
+  line-height: 1.45;
+}
+
+.assignments {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.assignment {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--aria-space-3);
+  width: 100%;
+  padding: 8px var(--aria-space-3);
+  border: 0;
+  border-radius: var(--aria-radius-xs);
+  background: none;
+  box-shadow: inset 0 0 0 1px var(--aria-border-subtle);
+  color: var(--aria-text-200);
+  font: inherit;
+  font-size: var(--aria-text-sm);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--aria-duration-fast) var(--aria-ease), color var(--aria-duration-fast) var(--aria-ease);
+}
+
+.assignment:hover {
+  background: var(--aria-bg-elevated);
+  color: var(--aria-text-100);
+}
+
+.staged {
+  margin: var(--aria-space-3) 0 0;
+  padding: 8px var(--aria-space-3);
+  border-radius: var(--aria-radius-xs);
+  background: color-mix(in oklab, var(--aria-lime-400) 8%, transparent);
+  color: var(--aria-lime-200);
+  font-size: var(--aria-text-xs);
+  line-height: 1.5;
+}
+
+.activity {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.activityRow {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: var(--aria-space-3);
+  font-size: var(--aria-text-sm);
+  line-height: 1.5;
+}
+
+.activityRow > span:first-child {
+  color: var(--aria-text-600);
+  font-variant-numeric: tabular-nums;
+}
+
+.activityRow strong {
+  display: block;
+  color: var(--aria-text-100);
+  font-weight: 500;
+}
+
+.activityDetail {
+  display: block;
+  color: var(--aria-text-500);
+  font-size: var(--aria-text-xs);
+}
+
+@media (max-width: 1180px) {
+  .metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 860px) {
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .toolbarNote {
+    max-width: none;
+    text-align: left;
+  }
+
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .metricCell {
+    padding: var(--aria-space-3);
+  }
+
+  .facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .hero {
+    grid-template-columns: 44px minmax(0, 1fr);
+  }
+
+  .hero > :last-child {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+}
