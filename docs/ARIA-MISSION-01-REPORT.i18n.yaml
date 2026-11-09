@@ -1,0 +1,58 @@
+# Bilingual-pair consistency record for ARIA-MISSION-01-REPORT.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/ARIA-MISSION-01-REPORT.md
+/aria-mission-01-report:
+  en: bc398dc917173868
+  zh: 83c2ab65b81c91d2
+/aria-mission-01-report/what-was-built:
+  en: 6709ccbf7635bdaf
+  zh: b9cf832ee34e85dd
+/aria-mission-01-report/definition-of-done:
+  en: 203d6b019c75bdc3
+  zh: 1d51c9ce30cb76de
+/aria-mission-01-report/definition-of-done/1-brand-identity-logo-wordmark-and-variants-pass:
+  en: a10eb4dceeceb19d
+  zh: 609d2e4a015b7bbb
+/aria-mission-01-report/definition-of-done/2-palette-and-design-tokens-pass:
+  en: c212a0eed4e8fb3c
+  zh: 351a77b418ca6996
+/aria-mission-01-report/definition-of-done/3-typography-and-spacing-system-pass:
+  en: 8132e7228a5ac088
+  zh: 588366c76f76866d
+/aria-mission-01-report/definition-of-done/4-accessibility-and-contrast-pass:
+  en: 2066135f933b792c
+  zh: 97bae534d0f846a5
+/aria-mission-01-report/definition-of-done/5-component-library-pass:
+  en: ebfeae22de01b4d9
+  zh: 940ded8c05afaaad
+/aria-mission-01-report/definition-of-done/6-the-six-screens-pass:
+  en: 15d2d20b5759b5a5
+  zh: df4ed6fccd9a7cf7
+/aria-mission-01-report/definition-of-done/7-information-architecture-and-navigation-pass:
+  en: f44a4d8d7586c39b
+  zh: ff25e156d0d30df3
+/aria-mission-01-report/definition-of-done/8-interaction-model-pass:
+  en: ad69920a1aec947e
+  zh: aacd46f4c4b944bc
+/aria-mission-01-report/definition-of-done/9-responsive-behaviour-pass:
+  en: 3e346de04ba862cd
+  zh: 64e9295fab33d05b
+/aria-mission-01-report/definition-of-done/10-documentation-pass:
+  en: 8d889e65f82d5273
+  zh: 3d0a40013643e845
+/aria-mission-01-report/definition-of-done/11-demonstration-data-clearly-isolated-pass:
+  en: 8567bba5622498f8
+  zh: 357283bde50d6dca
+/aria-mission-01-report/definition-of-done/12-original-dsh-interface-preserved-pass:
+  en: bebcbc518c7a61b5
+  zh: 78e5eab035a4b788
+/aria-mission-01-report/definition-of-done/13-verification-and-report-pass-with-scope-caveats:
+  en: fb80e5960b861bf0
+  zh: fff779489378e76f
+/aria-mission-01-report/known-gaps:
+  en: 50ea967616a3bf15
+  zh: 84245ee582bfddd4
+/aria-mission-01-report/how-to-review:
+  en: 97e4c53fee03cf5e
+  zh: 75b24f52240111f5
